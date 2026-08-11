@@ -27,3 +27,7 @@ CLAUDE.md
 claude-repo-safety.sh
 setup-repo-claude-safety.sh
 # --- End Claude Code safety ignore block ---
+
+# 서버에서 rsync로 당겨오는 실험 결과. 읽고 버리는 것이라 추적하지 않는다.
+# 남길 것은 sweep 이 끝난 뒤 docs/ 로 옮긴다.
+runs/

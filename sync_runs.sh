@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# 서버의 실험 결과 중 **읽을 수 있는 것만** 로컬로 당겨온다.
+#
+# 체크포인트(학습된 어댑터 가중치)는 안 가져온다. 하나가 수백 MB이고 68개 실험에
+# 에폭별로 셋씩 있어서, 다 받으면 수십 GB가 된다. 그것은 서버에 두고 필요할 때만
+# 골라서 받는다.
+#
+# rsync는 바뀐 부분만 골라 복사하는 도구다. 같은 명령을 몇 번 다시 돌려도 이미 받은
+# 파일은 건너뛰므로, 스윕이 도는 동안 몇 분마다 돌려도 부담이 없다.
+#
+# 사용:
+#     bash sync_runs.sh
+set -euo pipefail
+
+SERVER="${SERVER:-ad-068}"
+REMOTE="${REMOTE:-/data1/yblee/repository/model_train/runs/}"
+LOCAL="$(cd "$(dirname "$0")" && pwd)/runs/"
+
+mkdir -p "$LOCAL"
+
+# --include 를 --exclude 보다 먼저 쓴다. rsync는 위에서부터 처음 맞는 규칙을 따르므로,
+# 가져올 것을 먼저 적고 맨 아래에서 나머지를 통째로 막는다.
+rsync -avz --prune-empty-dirs \
+  --include='*/' \
+  --include='sweep.md' \
+  --include='sweep.json' \
+  --include='*.log' \
+  --include='summary.json' \
+  --include='records.jsonl' \
+  --include='config.json' \
+  --exclude='*' \
+  "$SERVER:$REMOTE" "$LOCAL"
+
+echo
+echo "받은 것:"
+du -sh "$LOCAL" 2>/dev/null || true
+[ -f "$LOCAL/sweep.md" ] && echo && cat "$LOCAL/sweep.md"
