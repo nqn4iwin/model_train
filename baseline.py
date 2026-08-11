@@ -31,6 +31,22 @@ from scoring import KEYS, restatement_ratio, score_blind, verdict
 MODEL = "KORMo-Team/KORMo-10B-base"
 
 
+def first_object_closed(raw: str) -> bool:
+    """첫 JSON 객체가 온전히 닫혔는지 괄호를 세어 본다. **채점에 쓰지 않는다.**
+
+    base 모델은 종료를 몰라 답을 다 쓰고도 계속 이어 쓴다. 그래서 생성이 언제나
+    상한에 닿고, 상한에 닿았다는 것만으로는 **답이 잘린 것인지 뒤에 딴소리가 붙은
+    것인지 가릴 수 없다.** 첫 객체가 닫혔으면 답은 다 나온 것이므로 상한을 늘려도
+    소용이 없다 -- 그 경우까지 "늘리세요"라고 하면 사람을 엉뚱한 데로 보낸다.
+    """
+    depth = 0
+    for char in raw:
+        depth += (char == "{") - (char == "}")
+        if depth == 0 and char == "}":
+            return True
+    return False
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--data", required=True, help="build_records.py가 낸 JSONL")
@@ -116,6 +132,7 @@ def main() -> None:
                 # 잘렸다는 뜻이다. 0점의 원인이 이 둘 중 어느 쪽인지 여기서 갈린다.
                 "new_tokens": int(fresh.shape[0]),
                 "prompt_tokens": int(encoded["input_ids"].shape[1]),
+                "first_object_closed": first_object_closed(raw),
                 "judgement": str(parsed.get("judgement", "")).strip(),
                 "labels": parsed.get("labels"), "impacts": parsed.get("impacts"),
                 "direct_impact": parsed.get("direct_impact"),
@@ -139,8 +156,14 @@ def main() -> None:
         "temperature": args.temperature, "max_new_tokens": args.max_new_tokens,
         "prefill": args.prefill,
         "empty_outputs": sum(1 for r in graded if r["new_tokens"] == 0),
+        # 상한에 닿았는데 첫 객체도 안 닫힌 것만 진짜 잘린 것이다. 닫혔는데 상한에
+        # 닿은 것은 답 뒤에 딴소리가 붙은 것이라 상한을 늘려도 달라지지 않는다.
         "truncated_outputs": sum(1 for r in graded
-                                 if r["new_tokens"] >= args.max_new_tokens),
+                                 if r["new_tokens"] >= args.max_new_tokens
+                                 and not r["first_object_closed"]),
+        "rambled_outputs": sum(1 for r in graded
+                               if r["new_tokens"] >= args.max_new_tokens
+                               and r["first_object_closed"]),
         "AM_rates": rates,
         "AM_mean": round(sum(rates.values()) / len(rates), 3),
         "AM_min": min(rates.values()),
@@ -159,7 +182,10 @@ def main() -> None:
     if summary["empty_outputs"]:
         print(f"\n  ! 아무것도 안 뱉은 것 {summary['empty_outputs']}건 -- 점수가 아니라 고장입니다")
     if summary["truncated_outputs"]:
-        print(f"\n  ! 끝이 잘린 것 {summary['truncated_outputs']}건 -- --max-new-tokens를 늘리세요")
+        print(f"\n  ! 답이 잘린 것 {summary['truncated_outputs']}건 -- --max-new-tokens를 늘리세요")
+    if summary["rambled_outputs"]:
+        print(f"\n  · 답을 다 쓰고도 안 멈춘 것 {summary['rambled_outputs']}건"
+              f" -- 상한을 늘려도 달라지지 않습니다 (base 모델이라 종료를 모릅니다)")
     print(f"\n  판정: {summary['verdict']}   ({summary['elapsed_seconds']:.0f}초)")
     print(f"저장: {out_dir}")
 
