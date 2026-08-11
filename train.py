@@ -128,7 +128,10 @@ def inspect(config: dict, rows: list[dict]) -> None:
         print("  ! 정답 문자열 자체에는 EOS가 없습니다. TRL이 붙여 주는지"
               " 아래 실제 배치에서 확인하세요.")
 
-    # TRL이 실제로 만드는 배치를 그대로 꺼내 본다. 위의 추측이 아니라 이것이 진실이다.
+    # TRL을 실제로 세워 본다. **`Adding EOS to train dataset` 로그가 뜨면 그것이 답이다**
+    # -- 정답 문자열에 EOS가 없어도 TRL이 붙여 준다는 뜻이고, 2026-08-11에 확인했다.
+    # 그 아래 배치를 꺼내는 부분은 TRL 5.x에서 실패할 수 있는데, 위 로그가 이미
+    # 물음에 답했으므로 실패해도 상관없다.
     try:
         from trl import SFTConfig, SFTTrainer
         trainer = SFTTrainer(
@@ -146,8 +149,8 @@ def inspect(config: dict, rows: list[dict]) -> None:
             print(f"    손실에서 제외된 토큰 {masked}개 (프롬프트 길이 {len(prompt_ids)}와 비슷해야 정상)")
         print(f"    끝에 EOS({tokenizer.eos_token_id})가 있나: {ids[-1] == tokenizer.eos_token_id}")
     except Exception as error:
-        print(f"\n  TRL 배치 확인 실패: {type(error).__name__}: {error}")
-        print("  (모델을 올려야 하는 단계라 GPU 없이는 여기까지 못 갈 수 있습니다)")
+        print(f"\n  배치를 꺼내지는 못했습니다: {type(error).__name__}: {error}")
+        print("  위에 'Adding EOS to train dataset'이 찍혔으면 EOS는 붙은 것입니다.")
 
 
 def main() -> None:
