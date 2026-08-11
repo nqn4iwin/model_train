@@ -150,6 +150,10 @@ def main() -> None:
     ap.add_argument("--check", action="store_true", help="설정만 검사하고 끝낸다")
     ap.add_argument("--redo", action="store_true",
                     help="이미 끝난 실험도 다시 돌린다. 기본은 건너뛰고 결과만 주워 온다")
+    ap.add_argument("--slots-per-gpu", type=int, default=2,
+                    help="한 장에 동시에 물릴 실험 수. 10B를 bf16으로 올리면 21GB고 "
+                         "LoRA는 원본을 얼려두므로 80GB 한 장에 둘이 들어간다. 벽시계 "
+                         "시간이 절반이 되고 GPU가 노는 시간도 준다. OOM이 나면 1로 준다")
     args = ap.parse_args()
 
     paths = list(args.configs)
@@ -174,7 +178,9 @@ def main() -> None:
     if results:
         print(f"\n  이미 끝난 {len(results)}개는 건너뜁니다 (--redo로 다시 돌립니다)")
 
-    print(f"\nGPU {'·'.join(GPUS)}번에 두 개씩 물립니다. 남은 {len(queue)}개.\n")
+    slots = [gpu for gpu in GPUS for _ in range(args.slots_per_gpu)]
+    print(f"\nGPU {'·'.join(GPUS)}번에 각 {args.slots_per_gpu}개씩,"
+          f" 동시에 {len(slots)}개를 돌립니다. 남은 {len(queue)}개.\n")
     lock = threading.Lock()
 
     def worker(gpu: str) -> None:
@@ -185,7 +191,7 @@ def main() -> None:
                 path = queue.pop(0)
             run_one(path, gpu, results, lock)
 
-    threads = [threading.Thread(target=worker, args=(gpu,)) for gpu in GPUS]
+    threads = [threading.Thread(target=worker, args=(gpu,)) for gpu in slots]
     for thread in threads:
         thread.start()
     for thread in threads:
