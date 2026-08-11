@@ -1,0 +1,26 @@
+{
+  "source": "records.jsonl",
+  "source_run": "20260811T065513.313834Z__annotate__v2.2",
+  "source_records": 521,
+  "holdout_series": "mof_rd_regulation_pair",
+  "train": 461,
+  "holdout": 37,
+  "train_judgements": {
+    "negative": 181,
+    "positive": 280
+  },
+  "train_series": {
+    "mpm_privacy_policy": 409,
+    "mss_rd_guideline_pair": 18,
+    "mss_tips_support_notice_pair": 2,
+    "regional_industry_guideline_pair": 32
+  },
+  "holdout_judgements": {
+    "negative": 11,
+    "positive": 26
+  },
+  "dropped": {
+    "교사 출력을 못 씀": 19,
+    "평가셋 11건과 겹침": 4
+  }
+}

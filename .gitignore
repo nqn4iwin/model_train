@@ -1,0 +1,29 @@
+# --- Codex safety ignore block ---
+.venv/
+venv/
+.env
+.env.*
+*.pem
+*.key
+*.token
+*.secret
+__pycache__/
+*.pyc
+.cache/
+.ipynb_checkpoints/
+.codex/
+.pre-commit-config.yaml
+AGENTS.md
+codex-repo-safety.ps1
+PLAN.md
+TODO.md
+docs/PLAN.md
+docs/TODO.md
+# --- End Codex safety ignore block ---
+
+# --- Claude Code safety ignore block ---
+.claude/
+CLAUDE.md
+claude-repo-safety.sh
+setup-repo-claude-safety.sh
+# --- End Claude Code safety ignore block ---
