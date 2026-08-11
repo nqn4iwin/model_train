@@ -1,17 +1,8 @@
 {
   "extends": "_base.json",
   "name": "cartridge",
-  "note": "CARTRIDGE (인자 최소)",
+  "note": "Cartridge. target_modules를 안 받아 최소한만 준다",
   "peft": {
-    "peft_type": "CARTRIDGE",
-    "target_modules": [
-      "q_proj",
-      "k_proj",
-      "v_proj",
-      "o_proj",
-      "gate_proj",
-      "up_proj",
-      "down_proj"
-    ]
+    "peft_type": "CARTRIDGE"
   }
 }

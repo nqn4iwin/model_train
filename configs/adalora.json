@@ -1,9 +1,11 @@
 {
   "extends": "_base.json",
   "name": "adalora",
-  "note": "ADALORA (인자 최소)",
+  "note": "AdaLoRA. total_step은 562/(1x8)x3 = 211에서 나온 값이라 배치를 바꾸면 같이 바꾼다",
   "peft": {
     "peft_type": "ADALORA",
+    "init_r": 64,
+    "target_r": 16,
     "target_modules": [
       "q_proj",
       "k_proj",
@@ -12,6 +14,7 @@
       "gate_proj",
       "up_proj",
       "down_proj"
-    ]
+    ],
+    "total_step": 211
   }
 }
