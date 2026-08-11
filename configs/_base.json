@@ -1,6 +1,6 @@
 {
   "name": "lora-full-rules",
-  "note": "기준 조건. 다른 설정은 extends로 이것을 물려받고 바뀌는 칸만 적는다.",
+  "note": "기준 조건. 다른 설정은 extends로 이것을 물려받고 바뀌는 칸만 적는다. save_total_limit이 3인 것은 에폭별 체크포인트를 남겨, 붕괴가 몇 에폭째에 일어났는지 재학습 없이 보려는 것이다.",
   "model": "KORMo-Team/KORMo-10B-base",
   "model_revision": "main",
   "data": "data/20260811__annotate__v2.2/train.jsonl",
@@ -16,7 +16,7 @@
   "num_train_epochs": 3,
   "logging_steps": 5,
   "save_strategy": "epoch",
-  "save_total_limit": 1,
+  "save_total_limit": 3,
   "gradient_checkpointing": true,
   "peft": {
     "peft_type": "LORA",
