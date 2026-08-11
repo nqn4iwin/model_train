@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 
 from formatting import build_prompt
-from scoring import KEYS, restatement_ratio, score_blind, verdict
+from scoring import KEYS, collapsed, restatement_ratio, score_blind, verdict
 
 MODEL = "KORMo-Team/KORMo-10B-base"
 
@@ -128,6 +128,10 @@ def main() -> None:
             parsed = marked.pop("parsed") or {}
             record = {
                 "id": row["id"], "turn": turn, "scores": marked,
+                # 교사가 이 블록을 뭐라 판정했는지. **AM 점수에는 안 들어간다** --
+                # 교사는 사람이 아니라 정답키가 못 되고, 잣대를 섞으면 교사 값과의
+                # 비교가 끊긴다. 붕괴를 알아보는 데만 쓴다.
+                "teacher_judgement": row.get("judgement"),
                 # 0이면 모델이 곧바로 끝냈다는 뜻이고, max_new_tokens와 같으면 끝이
                 # 잘렸다는 뜻이다. 0점의 원인이 이 둘 중 어느 쪽인지 여기서 갈린다.
                 "new_tokens": int(fresh.shape[0]),
@@ -149,6 +153,12 @@ def main() -> None:
     stream.close()
 
     rates = {k: round(sum(r["scores"][k] for r in graded) / len(graded), 3) for k in KEYS}
+    said = [r["judgement"] for r in graded]
+    # 교사와 판정이 얼마나 맞았나. **AM 항목이 아니다** -- 교사는 사람 정답키가 아니라
+    # 합격 판정에 쓸 수 없고, 여기서는 붕괴를 알아보는 눈금으로만 쓴다. 홀드아웃이
+    # positive 26 · negative 11이므로 무조건 negative를 내면 29.7%가 나온다.
+    matched = sum(1 for r in graded if r["judgement"] == r.get("teacher_judgement"))
+    is_collapsed = collapsed(said)
     summary = {
         "model": args.model, "model_revision": args.model_revision,
         "adapter": args.adapter, "data": args.data, "rules": not args.no_rules,
@@ -167,7 +177,9 @@ def main() -> None:
         "AM_rates": rates,
         "AM_mean": round(sum(rates.values()) / len(rates), 3),
         "AM_min": min(rates.values()),
-        "verdict": verdict(rates),
+        "verdict": "붕괴" if is_collapsed else verdict(rates),
+        "collapsed": is_collapsed,
+        "teacher_agreement": round(matched / len(graded), 3),
         "judgements": {j: sum(1 for r in graded if r["judgement"] == j)
                        for j in {r["judgement"] for r in graded}},
         "elapsed_seconds": round(time.time() - started, 1),
@@ -179,6 +191,11 @@ def main() -> None:
     for key, rate in rates.items():
         print(f"  {key:<6} {rate:>6.1%}")
     print(f"  {'평균':<6} {summary['AM_mean']:>6.1%}   최저 {summary['AM_min']:>6.1%}")
+    print(f"\n  판정 분포 {summary['judgements']}"
+          f"   교사와 일치 {summary['teacher_agreement']:.1%}")
+    if is_collapsed:
+        print(f"  ! 붕괴 -- {len(graded)}건 전부 '{said[0]}'입니다. AM 점수는 믿을 수 없습니다.")
+        print("    labels가 비면 AM2·AM3이 검사할 것이 없어 자동 만점이 됩니다.")
     if summary["empty_outputs"]:
         print(f"\n  ! 아무것도 안 뱉은 것 {summary['empty_outputs']}건 -- 점수가 아니라 고장입니다")
     if summary["truncated_outputs"]:

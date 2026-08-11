@@ -119,6 +119,30 @@ def restatement_ratio(after: str, sentence: str) -> float | None:
         None, sentence, after, autojunk=False).ratio(), 3)
 
 
+def collapsed(judgements: list[str]) -> bool:
+    """모든 항목에 같은 판정을 내놓았는가. **채점 점수와 별개로 본다.**
+
+    2026-08-11에 기준 조건 첫 판에서 드러난 구멍이다. 학습된 모델이 37건 전부에
+    이 답을 냈다.
+
+        {"judgement":"negative","labels":[],"impacts":[],"direct_impact":""}
+
+    **이 답은 다섯 항목 만점을 받는다.** `labels`가 비면 AM2는 검사할 어휘가 없어
+    자동 1점, AM3은 0개라 중복도 0이라 자동 1점이다. AM6s는 negative에 배열이
+    비었으니 자기일관이고, AM8s는 주체가 없으니 흘릴 것도 없다. **제일 게으른 답이
+    만점 전략이다.**
+
+    그런데 홀드아웃 37건 중 26건이 positive였으므로 실제로는 26건을 틀렸다.
+
+    학습이 이쪽으로 가는 이유도 분명하다 -- 학습 562건 중 258건이 negative이고
+    그 정답이 23토큰으로 제일 짧아, 손실을 제일 빨리 줄이는 길이 "전부 negative"다.
+
+    **AM 값 자체는 건드리지 않는다.** 교사 값과 라운드끼리의 비교가 끊기기 때문이다.
+    이 검사는 그 옆에 따로 세워 둔다.
+    """
+    return len(judgements) > 1 and len(set(judgements)) == 1
+
+
 def verdict(rates: dict[str, float]) -> str:
     """`돌리기 전에 고정된` 실패 기준으로 한 라운드를 판정한다.
 

@@ -65,7 +65,9 @@ def collect(path: Path) -> dict | None:
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     return {"stage": "끝", "verdict": summary["verdict"],
             "note": config.get("note", ""), "peft_type": config["peft"]["peft_type"],
-            **summary["AM_rates"], "평균": summary["AM_mean"], "최저": summary["AM_min"],
+            **summary["AM_rates"], "평균": summary["AM_mean"],
+            "교사일치": summary.get("teacher_agreement"),
+            "판정": summary.get("judgements"),
             "안 멈춤": summary["rambled_outputs"], "분": "-"}
 
 
@@ -107,15 +109,16 @@ def run_one(path: Path, gpu: str, results: dict, lock: threading.Lock) -> None:
         results[name] = {"stage": "끝", "verdict": summary["verdict"],
                          "note": config.get("note", ""),
                          "peft_type": config["peft"]["peft_type"],
-                         **summary["AM_rates"],
-                         "평균": summary["AM_mean"], "최저": summary["AM_min"],
+                         **summary["AM_rates"], "평균": summary["AM_mean"],
+                         "교사일치": summary.get("teacher_agreement"),
+                         "판정": summary.get("judgements"),
                          "안 멈춤": summary["rambled_outputs"],
                          "분": round((time.time() - started) / 60, 1)}
         write_table(results)
     print(f"  [GPU {gpu}] {summary['verdict']:<6} {name}  평균 {summary['AM_mean']:.1%}")
 
 
-COLUMNS = ["AM1", "AM2", "AM3", "AM6s", "AM8s", "평균", "최저", "안 멈춤", "분"]
+COLUMNS = ["AM1", "AM2", "AM3", "AM6s", "AM8s", "평균", "교사일치", "판정", "안 멈춤", "분"]
 
 
 def write_table(results: dict) -> list[str]:
@@ -127,8 +130,11 @@ def write_table(results: dict) -> list[str]:
     lines = ["# 스윕 결과", "",
              "학습 전 KORMo(제로샷) 평균 7.6% · AM1 13.5% · negative 0건."
              " `docs/베이스라인_기록.md` 참고.", "",
-             "`sentence` 조건은 `labels`를 안 내므로 AM2·AM3에서 검사할 것이 없어"
-             " 두 항목이 공짜로 1점이 된다. 축 1을 나란히 놓을 때 감안한다.", "",
+             "**판정이 한 종류뿐이면 `붕괴`다. AM 점수를 믿지 않는다.**"
+             " `labels`가 비면 AM2·AM3이 검사할 것이 없어 자동 만점이 되므로,"
+             " '무조건 negative'가 이 채점기의 만점 전략이다.", "",
+             "`교사일치`는 AM 항목이 아니라 붕괴를 알아보는 눈금이다."
+             " 홀드아웃이 positive 26 · negative 11이라 무조건 negative면 29.7%가 나온다.", "",
              "| 실험 | PEFT | 판정 | " + " | ".join(COLUMNS) + " | 메모 |",
              "| --- | --- | --- | " + " | ".join("---:" for _ in COLUMNS) + " | --- |"]
     for name, row in sorted(results.items(), key=lambda kv: -(kv[1].get("평균") or -1)):
