@@ -1,0 +1,6 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-nonegative",
+  "note": "축2 negative 제거",
+  "negatives": "drop"
+}

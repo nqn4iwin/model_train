@@ -1,0 +1,6 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-bare",
+  "note": "축1 규칙서 없음",
+  "rules": false
+}

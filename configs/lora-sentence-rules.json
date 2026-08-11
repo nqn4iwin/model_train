@@ -1,0 +1,6 @@
+{
+  "extends": "_base.json",
+  "name": "lora-sentence-rules",
+  "note": "축1 구조화 없는 SFT(최종 답변만). AM2·AM3에서 공짜 점수를 받으니 표에 각주 필요",
+  "target": "sentence"
+}

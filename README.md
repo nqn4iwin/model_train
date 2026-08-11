@@ -11,11 +11,42 @@
 ```text
 scoring.py         정답키 없이 매기는 채점기. data_collect에서 옮겨 심은 것
 test_scoring.py    옮겨 심은 채점기가 원본과 같은 답을 내는지 대조
-build_records.py   교사 해석 -> 학습 레코드 조립
+build_records.py   교사 해석에서 쓸 것만 거르고 학습용·평가용으로 가른다
+formatting.py      레코드 -> 프롬프트·정답 조립. 실험 조건이 여기서 갈린다
+train.py           설정 JSON 하나로 PEFT 학습 한 번
+sweep.py           설정 여러 개를 GPU 4·5에 물려 돌리고 채점까지
 baseline.py        학습 전/후 KORMo를 같은 잣대로 채점
+configs/           _base.json 을 물려받고 바뀌는 칸만 적는다
 prompts/           역할 A 규칙서
 data/              얼려둔 학습 데이터. 폴더 이름에 날짜와 판본을 박는다
+docs/              베이스라인 기록, 서버 환경
 ```
+
+## 학습 엔진
+
+| 층 | 무엇 |
+| --- | --- |
+| 학습 루프 | **TRL `SFTTrainer`** (transformers `Trainer` 위) |
+| 어댑터 | **`peft`** -- `peft_type` 이름으로 42종 중에서 고른다 |
+| 모델 | `transformers` + `trust_remote_code` (KORMo는 자체 클래스) |
+
+**한 실험은 설정 JSON 하나다.** `configs/_base.json`이 공통이고, 나머지는 `extends`로
+그것을 물려받아 **바뀌는 칸만 적는다.** 비교 실험이 전부 "다른 건 똑같이 두고 하나만
+바꾼다"라, 파일이 곧 그 실험의 차이 목록이 된다.
+
+```json
+{ "extends": "_base.json", "name": "lora-dora", "peft": { "use_dora": true } }
+```
+
+바꿀 수 있는 칸은 넷이다. **데이터 파일은 한 벌로 얼려두고 조건은 설정에만 둔다** --
+두 실험이 정말 같은 데이터에서 출발했는지가 파일 해시 하나로 확인된다.
+
+| 칸 | 값 | 무엇을 재나 |
+| --- | --- | --- |
+| `target` | `full` · `no-impacts` · `sentence` | 기획서 3.3 축 1 (무엇을 학습시키나) |
+| `rules` | `true` · `false` | 규칙서 3,300자를 레코드마다 붙일지 |
+| `negatives` | `keep` · `drop` | 기획서 3.3 축 2 |
+| `downsample` | 숫자 · `null` | 한 계열 쏠림(60%)을 줄일지 |
 
 ## 왜 데이터를 커밋하는가
 

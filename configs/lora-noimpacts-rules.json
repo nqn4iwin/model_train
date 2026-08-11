@@ -1,0 +1,6 @@
+{
+  "extends": "_base.json",
+  "name": "lora-noimpacts-rules",
+  "note": "축1 impacts 배열만 뺌",
+  "target": "no-impacts"
+}

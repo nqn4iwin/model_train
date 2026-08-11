@@ -31,11 +31,30 @@ from formatting import build_completion, build_prompt
 HERE = Path(__file__).resolve().parent
 
 
-def read_config(path: str) -> dict:
-    config = json.loads(Path(path).read_text(encoding="utf-8"))
-    missing = {"name", "model", "data", "output_dir", "peft"} - set(config)
+def read_config(path: str | Path) -> dict:
+    """설정을 읽는다. `extends`가 있으면 그 파일 위에 이 파일을 덮어쓴다.
+
+    **비교 실험이 전부 "다른 건 똑같이 두고 하나만 바꾼다"라 상속이 필요하다.** 스무 개
+    설정에 학습률을 스무 번 적어두면, 한 곳을 고칠 때 열아홉 곳이 옛 값으로 남아
+    통제가 조용히 깨진다. 바뀌는 칸만 적으면 **파일이 곧 그 실험의 차이 목록**이 된다.
+
+    한 단계만 물려받는다. 상속의 상속은 무엇이 이겼는지 읽기 어려워진다.
+    """
+    path = Path(path)
+    config = json.loads(path.read_text(encoding="utf-8"))
+    parent = config.pop("extends", None)
+    if parent:
+        base = json.loads((path.parent / parent).read_text(encoding="utf-8"))
+        base.pop("extends", None)
+        # **output_dir은 절대 물려받지 않는다.** 물려받으면 열여덟 실험이 한 폴더를
+        # 가리켜 서로를 덮어쓴다. 에러가 안 나고 결과만 사라지는 종류의 고장이라
+        # 나중에 알아채기도 어렵다. 자식이 명시하지 않았으면 이름에서 새로 만든다.
+        base.pop("output_dir", None)
+        config = {**base, **config}
+    config.setdefault("output_dir", f"runs/{config['name']}")
+    missing = {"name", "model", "data", "peft"} - set(config)
     if missing:
-        raise ValueError(f"설정에 빠진 칸: {sorted(missing)}")
+        raise ValueError(f"{path}: 설정에 빠진 칸 {sorted(missing)}")
     return config
 
 

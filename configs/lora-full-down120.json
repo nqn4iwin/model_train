@@ -1,0 +1,6 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-down120",
+  "note": "축2 계열 다운샘플 120",
+  "downsample": 120
+}

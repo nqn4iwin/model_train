@@ -1,0 +1,13 @@
+{
+  "extends": "_base.json",
+  "name": "vera",
+  "note": "VeRA. 대상 층의 모양이 같아야 해서 q_proj·o_proj만",
+  "peft": {
+    "peft_type": "VERA",
+    "r": 256,
+    "target_modules": [
+      "q_proj",
+      "o_proj"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "extends": "_base.json",
+  "name": "lokr",
+  "note": "LoKr",
+  "peft": {
+    "peft_type": "LOKR",
+    "r": 16,
+    "alpha": 32,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}

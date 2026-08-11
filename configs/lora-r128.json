@@ -1,0 +1,21 @@
+{
+  "extends": "_base.json",
+  "name": "lora-r128",
+  "note": "rank 128",
+  "peft": {
+    "peft_type": "LORA",
+    "r": 128,
+    "lora_alpha": 256,
+    "lora_dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "bias": "none"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "extends": "_base.json",
+  "name": "tinylora",
+  "note": "TinyLoRA",
+  "peft": {
+    "peft_type": "TINYLORA",
+    "r": 32,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}
