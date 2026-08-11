@@ -47,12 +47,17 @@ FIELDS = ("id", "series", "before_id", "after_id", "before", "after",
 def usable(record: dict) -> bool:
     """학습 레코드가 될 수 있는가.
 
+    `annotate.py`가 막 뱉은 것과, `data_collect`가 품질 필터까지 걸어 넘긴 것 두 가지가
+    들어온다. **뒤엣것에는 `scores`가 없다** -- 이미 걸러진 뒤라 채점 결과를 들고 다닐
+    이유가 없기 때문이다. `scores`가 있으면 여기서 한 번 더 거르고, 없으면 걸러진
+    것으로 보고 판정만 확인한다.
+
     교사 호출이 실패했거나(`error`), 교사 출력이 JSON으로 안 읽힌 것(`AM1`이 0)은
-    정답이 없으므로 쓸 수 없다. **교사도 4% 정도 여기서 떨어진다.**
+    정답이 없으므로 쓸 수 없다.
     """
-    if "error" in record or "scores" not in record:
+    if "error" in record:
         return False
-    if not record["scores"].get("AM1"):
+    if "scores" in record and not record["scores"].get("AM1"):
         return False
     return record.get("judgement") in {"positive", "negative"}
 
@@ -61,6 +66,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("records", help="data_collect가 뽑은 records.jsonl")
     ap.add_argument("--out", required=True, help="쓸 폴더. 날짜와 판본을 경로에 박는다")
+    ap.add_argument("--train-only", action="store_true",
+                    help="이미 얼려둔 holdout.jsonl을 건드리지 않는다. baseline을 그 위에서 "
+                         "이미 쟀다면 반드시 이것을 준다 -- 홀드아웃이 한 건이라도 달라지면 "
+                         "학습 전과 후를 나란히 놓을 수 없다")
     args = ap.parse_args()
 
     source = Path(args.records)
@@ -80,7 +89,15 @@ def main() -> None:
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    for name, chosen in (("train.jsonl", train), ("holdout.jsonl", holdout)):
+    written = [("train.jsonl", train)]
+    if args.train_only:
+        frozen = out_dir / "holdout.jsonl"
+        holdout = [json.loads(line) for line in
+                   frozen.read_text(encoding="utf-8").splitlines() if line.strip()]
+        print(f"홀드아웃은 얼려둔 {frozen}을 그대로 씁니다 ({len(holdout)}건)\n")
+    else:
+        written.append(("holdout.jsonl", holdout))
+    for name, chosen in written:
         (out_dir / name).write_text(
             "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in chosen),
             encoding="utf-8")
@@ -88,6 +105,7 @@ def main() -> None:
     meta = {
         "source": source.name, "source_run": source.parent.name,
         "source_records": len(records),
+        "holdout_frozen": args.train_only,
         "holdout_series": HOLDOUT_SERIES,
         "train": len(train), "holdout": len(holdout),
         "train_judgements": dict(Counter(r["judgement"] for r in train)),

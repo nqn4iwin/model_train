@@ -1,0 +1,26 @@
+{
+  "source_run": "20260811T065513.313834Z__annotate__v2.2",
+  "input": 697,
+  "kept": 605,
+  "dropped": {
+    "파싱 실패": 22,
+    "주체 흘림": 53,
+    "빈 배열": 8,
+    "negative인데 영향 있음": 3,
+    "어휘 위반": 6
+  },
+  "judgements": {
+    "positive": 335,
+    "negative": 270
+  },
+  "series": {
+    "mpm_privacy_policy": 361,
+    "regional_industry_guideline_pair": 149,
+    "tips_operating_guideline_pair": 40,
+    "mof_rd_regulation_pair": 36,
+    "mss_rd_guideline_pair": 16,
+    "mss_tips_support_notice_pair": 2,
+    "ftc_gift_certificate_terms": 1
+  },
+  "subject_kept_ratio": 0.5
+}
