@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-down120-s44",
+  "note": "lora-full-down120 seed 44",
+  "seed": 44,
+  "downsample": 120
+}

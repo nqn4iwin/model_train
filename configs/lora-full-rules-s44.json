@@ -1,0 +1,6 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-rules-s44",
+  "note": "lora-full-rules seed 44",
+  "seed": 44
+}

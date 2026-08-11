@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-bare-s44",
+  "note": "lora-full-bare seed 44",
+  "seed": 44,
+  "rules": false
+}

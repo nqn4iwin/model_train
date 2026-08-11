@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-noimpacts-bare",
+  "note": "축1 교차: no-impacts x 규칙서 없음",
+  "target": "no-impacts",
+  "rules": false
+}

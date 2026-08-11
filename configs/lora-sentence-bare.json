@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-sentence-bare",
+  "note": "축1 교차: sentence x 규칙서 없음",
+  "target": "sentence",
+  "rules": false
+}

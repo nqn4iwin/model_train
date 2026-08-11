@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-nonegative-s43",
+  "note": "lora-full-nonegative seed 43",
+  "seed": 43,
+  "negatives": "drop"
+}

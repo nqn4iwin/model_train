@@ -1,0 +1,6 @@
+{
+  "extends": "_base.json",
+  "name": "lora-lr5e-4",
+  "note": "학습률 5e-4 (기준은 2e-4)",
+  "learning_rate": 0.0005
+}

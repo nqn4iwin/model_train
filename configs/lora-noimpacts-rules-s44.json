@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-noimpacts-rules-s44",
+  "note": "lora-noimpacts-rules seed 44",
+  "seed": 44,
+  "target": "no-impacts"
+}

@@ -1,10 +1,12 @@
 {
   "extends": "_base.json",
-  "name": "oft",
-  "note": "OFT",
+  "name": "lora-r64",
+  "note": "rank 64",
   "peft": {
-    "peft_type": "OFT",
-    "oft_block_size": 32,
+    "peft_type": "LORA",
+    "r": 64,
+    "lora_alpha": 128,
+    "lora_dropout": 0.05,
     "target_modules": [
       "q_proj",
       "k_proj",
@@ -13,6 +15,7 @@
       "gate_proj",
       "up_proj",
       "down_proj"
-    ]
+    ],
+    "bias": "none"
   }
 }

@@ -1,0 +1,9 @@
+{
+  "extends": "_base.json",
+  "name": "p-tuning",
+  "note": "P_TUNING (프롬프트 계열)",
+  "peft": {
+    "peft_type": "P_TUNING",
+    "num_virtual_tokens": 32
+  }
+}

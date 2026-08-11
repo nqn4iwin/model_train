@@ -1,10 +1,9 @@
 {
   "extends": "_base.json",
-  "name": "oft",
-  "note": "OFT",
+  "name": "gralora",
+  "note": "GRALORA (인자 최소)",
   "peft": {
-    "peft_type": "OFT",
-    "oft_block_size": 32,
+    "peft_type": "GRALORA",
     "target_modules": [
       "q_proj",
       "k_proj",

@@ -1,0 +1,9 @@
+{
+  "extends": "_base.json",
+  "name": "prompt-tuning",
+  "note": "PROMPT_TUNING (프롬프트 계열)",
+  "peft": {
+    "peft_type": "PROMPT_TUNING",
+    "num_virtual_tokens": 32
+  }
+}

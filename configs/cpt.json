@@ -1,0 +1,9 @@
+{
+  "extends": "_base.json",
+  "name": "cpt",
+  "note": "CPT (프롬프트 계열)",
+  "peft": {
+    "peft_type": "CPT",
+    "num_virtual_tokens": 32
+  }
+}

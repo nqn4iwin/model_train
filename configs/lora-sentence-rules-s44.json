@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-sentence-rules-s44",
+  "note": "lora-sentence-rules seed 44",
+  "seed": 44,
+  "target": "sentence"
+}
