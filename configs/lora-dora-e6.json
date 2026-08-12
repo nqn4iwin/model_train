@@ -1,0 +1,24 @@
+{
+  "extends": "_base.json",
+  "name": "lora-dora-e6",
+  "note": "붕괴 대조군. 1·2·3에폭이 29.7%로 미동도 안 했다. 에폭을 늘리면 나오는지",
+  "num_train_epochs": 6,
+  "save_total_limit": 6,
+  "peft": {
+    "peft_type": "LORA",
+    "r": 32,
+    "lora_alpha": 64,
+    "lora_dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "bias": "none",
+    "use_dora": true
+  }
+}

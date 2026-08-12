@@ -1,0 +1,20 @@
+{
+  "extends": "_base.json",
+  "name": "delora-e6",
+  "note": "delora 6에폭. 3에폭에서 32.4%->91.9%로 뛴 참이라 천장인지 확인",
+  "num_train_epochs": 6,
+  "save_total_limit": 6,
+  "peft": {
+    "peft_type": "DELORA",
+    "r": 32,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}

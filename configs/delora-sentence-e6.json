@@ -1,0 +1,21 @@
+{
+  "extends": "_base.json",
+  "name": "delora-sentence-e6",
+  "note": "delora x sentence 교차 6에폭. delora-e6와 target 하나만 다르다",
+  "target": "sentence",
+  "num_train_epochs": 6,
+  "save_total_limit": 6,
+  "peft": {
+    "peft_type": "DELORA",
+    "r": 32,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}
