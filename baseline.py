@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 
 from formatting import build_prompt
-from scoring import KEYS, collapsed, restatement_ratio, score_blind, verdict
+from scoring import KEYS, collapsed, restatement_ratio, score_blind, skew, verdict
 
 MODEL = "KORMo-Team/KORMo-10B-base"
 
@@ -179,6 +179,9 @@ def main() -> None:
         "AM_min": min(rates.values()),
         "verdict": "붕괴" if is_collapsed else verdict(rates),
         "collapsed": is_collapsed,
+        # 붕괴는 예·아니오라 "37건 중 35건이 negative" 같은 것을 못 잡는다. 판정에는
+        # 안 쓰고 숫자만 남긴다 -- 결과를 보고 문턱을 세우면 비교가 끊긴다.
+        "skew": skew(said),
         "teacher_agreement": round(matched / len(graded), 3),
         "judgements": {j: sum(1 for r in graded if r["judgement"] == j)
                        for j in {r["judgement"] for r in graded}},

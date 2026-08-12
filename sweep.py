@@ -67,6 +67,7 @@ def collect(path: Path) -> dict | None:
             "note": config.get("note", ""), "peft_type": config["peft"]["peft_type"],
             **summary["AM_rates"], "평균": summary["AM_mean"],
             "교사일치": summary.get("teacher_agreement"),
+            "쏠림": summary.get("skew"),
             "판정": summary.get("judgements"),
             "안 멈춤": summary["rambled_outputs"], "분": "-"}
 
@@ -111,6 +112,7 @@ def run_one(path: Path, gpu: str, results: dict, lock: threading.Lock) -> None:
                          "peft_type": config["peft"]["peft_type"],
                          **summary["AM_rates"], "평균": summary["AM_mean"],
                          "교사일치": summary.get("teacher_agreement"),
+                         "쏠림": summary.get("skew"),
                          "판정": summary.get("judgements"),
                          "안 멈춤": summary["rambled_outputs"],
                          "분": round((time.time() - started) / 60, 1)}
@@ -118,7 +120,17 @@ def run_one(path: Path, gpu: str, results: dict, lock: threading.Lock) -> None:
     print(f"  [GPU {gpu}] {summary['verdict']:<6} {name}  평균 {summary['AM_mean']:.1%}")
 
 
-COLUMNS = ["AM1", "AM2", "AM3", "AM6s", "AM8s", "평균", "교사일치", "판정", "안 멈춤", "분"]
+COLUMNS = ["AM1", "AM2", "AM3", "AM6s", "AM8s", "평균", "교사일치", "쏠림",
+           "판정", "안 멈춤", "분"]
+
+
+def cell(value, column: str) -> str:
+    """표 한 칸을 만든다. 없는 값은 `None`이 아니라 `-`로 적는다."""
+    if value is None:
+        return "-"
+    if isinstance(value, float) and column != "분":
+        return f"{value:.1%}"
+    return str(value)
 
 
 def write_table(results: dict) -> list[str]:
@@ -134,12 +146,15 @@ def write_table(results: dict) -> list[str]:
              " `labels`가 비면 AM2·AM3이 검사할 것이 없어 자동 만점이 되므로,"
              " '무조건 negative'가 이 채점기의 만점 전략이다.", "",
              "`교사일치`는 AM 항목이 아니라 붕괴를 알아보는 눈금이다."
-             " 홀드아웃이 positive 26 · negative 11이라 무조건 negative면 29.7%가 나온다.", "",
+             " 홀드아웃이 positive 26 · negative 11이라 **무조건 negative면 29.7%,"
+             " 무조건 positive면 70.3%**가 나온다. 이 두 값 근처는 붕괴로 읽는다.", "",
+             "`쏠림`은 제일 많이 낸 판정이 차지하는 몫이다. 100%면 붕괴고,"
+             " 90%대는 붕괴에 가깝다. **합격 판정에는 안 쓰고 눈으로만 본다** --"
+             " 결과를 보고 문턱을 세우면 라운드끼리 비교가 끊긴다.", "",
              "| 실험 | PEFT | 판정 | " + " | ".join(COLUMNS) + " | 메모 |",
              "| --- | --- | --- | " + " | ".join("---:" for _ in COLUMNS) + " | --- |"]
     for name, row in sorted(results.items(), key=lambda kv: -(kv[1].get("평균") or -1)):
-        cells = [f"{row[c]:.1%}" if isinstance(row.get(c), float) and c != "분"
-                 else str(row.get(c, "-")) for c in COLUMNS]
+        cells = [cell(row.get(c), c) for c in COLUMNS]
         lines.append(f"| {name} | {row.get('peft_type', '-')} | {row['verdict']} | "
                      + " | ".join(cells) + f" | {row.get('note', '')} |")
     (HERE / "runs").mkdir(exist_ok=True)

@@ -139,8 +139,32 @@ def collapsed(judgements: list[str]) -> bool:
 
     **AM 값 자체는 건드리지 않는다.** 교사 값과 라운드끼리의 비교가 끊기기 때문이다.
     이 검사는 그 옆에 따로 세워 둔다.
+
+    **2026-08-12 수정 -- 파싱 실패를 판정으로 세지 않는다.** 첫 판에서는 종류를
+    그냥 세었는데, 그러면 `{'': 1, 'negative': 36}`이 "두 종류"가 되어 검사를
+    빠져나갔다. 빈 문자열은 모델이 내린 판정이 아니라 JSON을 못 읽었다는 표시라
+    판정 축에 세우면 안 된다. 실제로 psoft·road·hra·loha·lokr 다섯이 이 구멍으로
+    `됨` 판정을 받았고, 교사 일치는 전부 27~30%(=무조건 negative의 값)였다.
+
+    **기준을 낮춘 것이 아니라 원래 뜻대로 되돌린 것이다.** 이 함수는 처음부터
+    "판정이 한 종류뿐인가"였고, 파싱 실패는 판정이 아니다. 결과를 보고 문턱을
+    맞춘 것이 아니므로 `verdict`에 걸린 금기(아래)에 해당하지 않는다.
     """
-    return len(judgements) > 1 and len(set(judgements)) == 1
+    said = [j for j in judgements if j]
+    return len(said) > 1 and len(set(said)) == 1
+
+
+def skew(judgements: list[str]) -> float | None:
+    """제일 많이 낸 판정이 읽힌 것 중 차지하는 몫. **합격 판정에 쓰지 않는다.**
+
+    `collapsed`는 예·아니오라 "37건 중 35건이 negative" 같은 **거의 붕괴**를 못 잡는다.
+    그렇다고 여기에 문턱을 세우면 결과를 보고 기준을 만드는 것이 되므로, 숫자만
+    표에 세워 두고 판정은 사람이 한다. 읽힌 것이 없으면 None -- 붕괴가 아니라 고장이다.
+    """
+    said = [j for j in judgements if j]
+    if not said:
+        return None
+    return round(max(said.count(j) for j in set(said)) / len(said), 3)
 
 
 def verdict(rates: dict[str, float]) -> str:
