@@ -1,0 +1,14 @@
+{
+  "extends": "_base.json",
+  "name": "vera-lr1e-2",
+  "note": "vera가 아무것도 안 배운 것이 학습률 탓인지 본다. vera와 learning_rate 한 칸만 다르다. 손실이 0.16만 내려가고 끝났는데(스윕_결과 9절), 학습 파라미터를 극단적으로 줄인 방식에 LoRA용 2e-4를 준 탓이라는 가설이다",
+  "learning_rate": 0.01,
+  "peft": {
+    "peft_type": "VERA",
+    "r": 256,
+    "target_modules": [
+      "q_proj",
+      "o_proj"
+    ]
+  }
+}
