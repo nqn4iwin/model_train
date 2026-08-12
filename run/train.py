@@ -215,6 +215,25 @@ def main() -> None:
     # 기록할 값이다** -- 무엇이 이 모델에 붙고 안 붙는지가 이 스윕이 그리려는 지도다.
     peft_config = get_peft_config({"task_type": "CAUSAL_LM", **config["peft"]})
 
+    # 어디에 기록할지. **기본값은 텐서보드 하나뿐이다** -- `wandb`를 기본으로 두면 그것이
+    # 안 깔린 환경에서 학습이 시작조차 못 한다. 설정에 적은 곳만 켠다.
+    report_to = config.get("report_to", ["tensorboard"])
+    if "wandb" in report_to:
+        try:
+            import wandb  # noqa: F401
+        except ImportError:
+            # **터뜨리지 않고 빼되, 조용히 빼지도 않는다.** 설정에 적어 놓고 기록이 안
+            # 남는 것이 제일 나쁘다 -- 학습이 다 끝난 뒤에야 알아챈다.
+            print("! wandb를 못 불러왔습니다. 텐서보드만 씁니다."
+                  "  (pip install wandb)")
+            report_to = [r for r in report_to if r != "wandb"]
+        else:
+            # 프로젝트 이름을 코드에서 정해 둔다. 셸에 `WANDB_PROJECT`를 안 걸어두면
+            # 실험이 엉뚱한 곳에 쌓이는데, 나중에야 알아채는 종류의 사고다.
+            # setdefault라 셸에서 지정한 값이 있으면 그쪽이 이긴다.
+            os.environ.setdefault("WANDB_PROJECT",
+                                  config.get("wandb_project", "model_train"))
+
     trainer = SFTTrainer(
         model=config["model"],
         args=SFTConfig(
@@ -232,7 +251,10 @@ def main() -> None:
             gradient_checkpointing=config.get("gradient_checkpointing", True),
             model_init_kwargs={"dtype": torch.bfloat16, "use_cache": False,
                                "trust_remote_code": True},
-            report_to=["tensorboard"]),
+            # 기록에 붙는 이름. 안 주면 output_dir(`runs/delora`)가 이름이 되어
+            # W&B 목록에서 전부 `runs/`로 시작한다. 설정 이름이 곧 실험 이름이다.
+            run_name=config["name"],
+            report_to=report_to),
         train_dataset=to_dataset(rows, config),
         processing_class=tokenizer,
         peft_config=peft_config)

@@ -18,6 +18,8 @@
   "save_strategy": "epoch",
   "save_total_limit": 3,
   "gradient_checkpointing": true,
+  "report_to": ["tensorboard", "wandb"],
+  "wandb_project": "model_train",
   "peft": {
     "peft_type": "LORA",
     "r": 32,
