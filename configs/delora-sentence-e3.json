@@ -1,0 +1,19 @@
+{
+  "extends": "_base.json",
+  "name": "delora-sentence-e3",
+  "note": "DeLoRA x sentence 3에폭. delora-sentence-e6(91.9%)와는 에폭만, lora-sentence-rules(78.4%)와는 방법만 다르다. 비어 있던 이 칸 때문에 무엇이 올렸는지 못 갈랐다",
+  "target": "sentence",
+  "peft": {
+    "peft_type": "DELORA",
+    "r": 32,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}
