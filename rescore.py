@@ -23,8 +23,26 @@ import json
 from pathlib import Path
 
 from scoring import KEYS, collapsed, skew, verdict
+from sweep import write_table
+from train import read_config
 
 HERE = Path(__file__).resolve().parent
+
+
+def row_for(name: str, summary: dict, prior: dict) -> dict:
+    """`sweep.py`가 만드는 것과 같은 모양의 표 한 줄. 설정에서 메모와 방식 이름을 붙인다."""
+    path = HERE / "configs" / f"{name}.json"
+    config = read_config(path) if path.exists() else {}
+    return {"stage": "끝", "verdict": summary["verdict"],
+            "note": config.get("note", ""),
+            "peft_type": config.get("peft", {}).get("peft_type", "-"),
+            **summary["AM_rates"], "평균": summary["AM_mean"],
+            "교사일치": summary.get("teacher_agreement"),
+            "쏠림": summary.get("skew"),
+            "판정": summary.get("judgements"),
+            "안 멈춤": summary.get("rambled_outputs"),
+            # 걸린 시간은 기록에 안 남아 있다. 전에 만든 표에 있으면 그것을 쓴다.
+            "분": prior.get("분", "-")}
 
 
 def regrade(records: list[dict]) -> dict:
@@ -53,6 +71,11 @@ def main() -> None:
                     help="summary.json을 실제로 고친다. 기본은 보여주기만 한다")
     args = ap.parse_args()
 
+    # 전에 만든 표를 바탕으로 삼는다. **`못 돌림` 줄은 기록이 없어서 여기서만 나온다** --
+    # 새로 짓겠다고 버리면 학습 자체가 실패한 열 개가 표에서 사라진다.
+    table_path = args.runs / "sweep.json"
+    table = json.loads(table_path.read_text(encoding="utf-8")) if table_path.exists() else {}
+
     changed, same, broken = [], 0, []
     for records_path in sorted(args.runs.glob("*/eval/records.jsonl")):
         name = records_path.parents[1].name
@@ -77,10 +100,11 @@ def main() -> None:
             changed.append((name, old.get("verdict", "-"), fresh["verdict"],
                             fresh["teacher_agreement"], fresh["skew"], fresh["judgements"]))
 
+        merged = {**old, **fresh}
+        table[name] = row_for(name, merged, table.get(name, {}))
         if args.write:
             summary_path.write_text(
-                json.dumps({**old, **fresh}, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8")
+                json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     if changed:
         print(f"판정이 바뀐 것 {len(changed)}개\n")
@@ -95,9 +119,13 @@ def main() -> None:
         for name, why in broken:
             print(f"  {name:<28} {why}")
 
-    if not args.write:
+    if args.write:
+        write_table(table)
+        print(f"\n표를 다시 썼습니다: runs/sweep.md · runs/sweep.json ({len(table)}줄)")
+    else:
         print("\n보여주기만 했습니다. 반영하려면 --write 를 붙이세요.")
-        print("그 뒤 `python sweep.py --all` 로 표를 다시 만듭니다 (--redo 는 붙이지 마세요).")
+        print("**`sweep.py --all`은 부르지 마세요** -- 결과가 없는 설정을 아직 안 돌린 것으로")
+        print("보고 다시 학습시킵니다. `못 돌림` 열 개가 전부 다시 돌아갑니다.")
 
 
 if __name__ == "__main__":
