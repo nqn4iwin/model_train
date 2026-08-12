@@ -7,16 +7,16 @@
    짧은 것 스무 개라, 2장을 묶어 하나를 돌리는 것(DDP)보다 **한 장씩 두 개를 나란히
    돌리는 편이 빠르다** -- 짧은 실험에 DDP는 통신 비용만 붙는다. 대신 아무것도
    지정하지 않고 0번을 잡는 사고는 막는다. 이 서버는 8장을 여럿이 나눠 쓴다.
-2. **데이터를 우리 JSONL에서 읽는다.** 프롬프트와 정답은 `formatting.py`가 조립한다.
+2. **데이터를 우리 JSONL에서 읽는다.** 프롬프트와 정답은 `sft/formatting.py`가 조립한다.
    조건(규칙서를 붙일지, 정답을 어디까지 둘지)이 데이터가 아니라 설정에 있어야
    "다른 건 똑같이 두고 하나만 바꾼다"가 성립한다.
 3. **PEFT 방식을 설정에서 고른다.** `peft.peft_type`에 이름을 적으면 그대로 만든다.
    LoRA뿐 아니라 IA3·VeRA 같은 것도 이름만 바꿔 넣을 수 있고, **KORMo에 안 붙는
    방식은 여기서 에러가 난다.** 그것을 알아내는 것이 이 스윕의 목적이다.
 
-사용:
-    python train.py --config configs/lora-full-rules.json --inspect   # 안 돌리고 확인만
-    CUDA_VISIBLE_DEVICES=4 python train.py --config configs/lora-full-rules.json
+사용 (**저장소 뿌리에서 `-m`으로 부른다**):
+    python -m run.train --config configs/delora.json --inspect   # 안 돌리고 확인만
+    CUDA_VISIBLE_DEVICES=4 python -m run.train --config configs/delora.json
 """
 from __future__ import annotations
 
@@ -26,9 +26,10 @@ import os
 import subprocess
 from pathlib import Path
 
-from formatting import build_completion, build_prompt
+from sft.formatting import build_completion, build_prompt
 
-HERE = Path(__file__).resolve().parent
+# 이 파일은 run/ 안에 있고 configs·data·runs는 저장소 뿌리에 있으므로 한 단계 올라간다.
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def read_config(path: str | Path) -> dict:
@@ -72,7 +73,7 @@ def load_rows(config: dict) -> list[dict]:
     데이터에서 출발했는지가 파일 해시 하나로 확인된다.
     """
     rows = [json.loads(line) for line in
-            (HERE / config["data"]).read_text(encoding="utf-8").splitlines() if line.strip()]
+            (ROOT / config["data"]).read_text(encoding="utf-8").splitlines() if line.strip()]
 
     if config.get("negatives", "keep") == "drop":
         rows = [r for r in rows if r["judgement"] != "negative"]
@@ -196,7 +197,7 @@ def main() -> None:
     from transformers import AutoTokenizer
     from trl import SFTConfig, SFTTrainer
 
-    output_dir = HERE / config["output_dir"]
+    output_dir = ROOT / config["output_dir"]
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "config.json").write_text(
         json.dumps({**config, "git_revision": git_revision(),
@@ -240,7 +241,7 @@ def main() -> None:
     trainer.save_state()
     print(f"\n저장: {output_dir / 'final'}")
     print("채점:")
-    print(f"  CUDA_VISIBLE_DEVICES=$GPU python baseline.py \\")
+    print(f"  CUDA_VISIBLE_DEVICES=$GPU python -m run.evaluate \\")
     print(f"      --data data/20260811__annotate__v2.2/holdout.jsonl \\")
     print(f"      --adapter {config['output_dir']}/final --out {config['output_dir']}/eval")
 

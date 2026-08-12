@@ -16,7 +16,8 @@ import json
 from pathlib import Path
 from string import Template
 
-HERE = Path(__file__).resolve().parent
+# 이 파일은 sft/ 안에 있고 규칙서는 저장소 뿌리의 prompts/ 에 있으므로 한 단계 올라간다.
+ROOT = Path(__file__).resolve().parents[1]
 
 TARGETS = ("full", "no-impacts", "sentence")
 
@@ -47,7 +48,7 @@ def template(rules: bool | str) -> Template:
         return Template(BARE_INSTRUCTION)
     if name not in _cache:
         _cache[name] = Template(
-            (HERE / "prompts" / f"{name}.txt").read_text(encoding="utf-8"))
+            (ROOT / "prompts" / f"{name}.txt").read_text(encoding="utf-8"))
     return _cache[name]
 
 

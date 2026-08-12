@@ -9,18 +9,49 @@
 ## 저장소 구성
 
 ```text
-scoring.py         정답키 없이 매기는 채점기. data_collect에서 옮겨 심은 것
-test_scoring.py    옮겨 심은 채점기가 원본과 같은 답을 내는지 대조
-build_records.py   교사 해석에서 쓸 것만 거르고 학습용·평가용으로 가른다
-formatting.py      레코드 -> 프롬프트·정답 조립. 실험 조건이 여기서 갈린다
-train.py           설정 JSON 하나로 PEFT 학습 한 번
-sweep.py           설정 여러 개를 GPU 4·5에 물려 돌리고 채점까지
-baseline.py        학습 전/후 KORMo를 같은 잣대로 채점
-configs/           _base.json 을 물려받고 바뀌는 칸만 적는다
-prompts/           역할 A 규칙서
-data/              얼려둔 학습 데이터. 폴더 이름에 날짜와 판본을 박는다
-docs/              베이스라인 기록, 서버 환경
+sft/                 import 해서 쓰는 것. torch도 GPU도 안 부르는 순수 함수뿐이다
+  scoring.py         정답키 없이 매기는 채점기. data_collect에서 옮겨 심은 것
+  formatting.py      레코드 -> 프롬프트·정답 조립. 실험 조건이 여기서 갈린다
+  records.py         교사 해석에서 쓸 것을 거르고 학습용·평가용으로 가르는 규칙
+run/                 명령줄에서 부르는 것
+  build_records.py   위 규칙으로 데이터 파일을 만든다
+  train.py           설정 JSON 하나로 PEFT 학습 한 번
+  evaluate.py        학습 전/후 KORMo를 같은 잣대로 채점
+  sweep.py           설정 여러 개를 GPU 4·5에 물려 돌리고 채점까지
+  rescore.py         저장된 기록으로 판정만 다시 매긴다. GPU 안 씀
+tests/
+  test_scoring.py    옮겨 심은 채점기가 원본과 같은 답을 내는지 대조
+configs/             _base.json 을 물려받고 바뀌는 칸만 적는다
+prompts/             역할 A 규칙서
+data/                얼려둔 학습 데이터. 폴더 이름에 날짜와 판본을 박는다
+docs/                베이스라인 기록, 스윕 결과, 서버 환경
+runs/                실험 결과. 커밋하지 않는다 (sync_runs.sh 로 당겨온다)
 ```
+
+## 실행하는 법 — 반드시 `-m`으로, 저장소 뿌리에서
+
+```bash
+python -m run.train --config configs/delora.json
+```
+
+**`python run/train.py`로는 안 된다.** 그렇게 부르면 파이썬이 `run/` 폴더를 기준으로
+모듈을 찾아 `sft`를 못 보고 `ModuleNotFoundError: No module named 'sft'`가 난다.
+`-m`은 **지금 있는 폴더**를 기준으로 삼으므로, 저장소 뿌리에서 부르면 둘 다 보인다.
+
+| 하려는 것 | 명령 |
+| --- | --- |
+| 데이터 만들기 | `python -m run.build_records <records.jsonl> --out data/<날짜>__<판본>` |
+| 설정만 검사 | `python -m run.sweep --check` |
+| 한 건 학습 | `CUDA_VISIBLE_DEVICES=4 python -m run.train --config configs/delora.json` |
+| 토큰 길이만 확인 | `python -m run.train --config configs/delora.json --inspect` |
+| 채점 | `CUDA_VISIBLE_DEVICES=4 python -m run.evaluate --data <holdout> --adapter <경로> --out <경로>` |
+| 여러 건 한꺼번에 | `python -m run.sweep --all` |
+| 판정만 다시 매기기 | `python -m run.rescore --write` |
+| 채점기 대조 | `python -m tests.test_scoring <records.jsonl>` |
+
+**`--all`은 결과가 이미 있는 상태에서 부르면 안 된다.** `summary.json`이 없는 설정을
+아직 안 돌린 것으로 보고 다시 학습시키므로, 학습이 실패했던 설정들이 전부 다시 돈다.
+표만 다시 만들려면 `run.rescore --write`를 쓴다.
 
 ## 학습 엔진
 
@@ -83,7 +114,11 @@ docs/              베이스라인 기록, 서버 환경
 
 **결과를 보고 고치지 않는다.** 나온 것을 보고 기준을 맞추면 라운드끼리 비교가 안 된다.
 스무 개 조합을 돌리면 애매한 것이 반드시 나오는데, 거기서 기준을 손대면 표 스무 개가
-전부 못 쓰게 된다. `scoring.py`의 `verdict()`가 이 기준이다.
+전부 못 쓰게 된다. `sft/scoring.py`의 `verdict()`가 이 기준이다.
+
+**여기에 `붕괴`가 하나 더 붙는다.** 홀드아웃 37건에 판정을 한 종류만 낸 것으로,
+AM 점수와 무관하게 실패다. 게으른 답 하나가 다섯 항목을 전부 만족시키기 때문이다 --
+2026-08-12 스윕에서 AM 평균 상위 21개가 전부 만점 붕괴였다. `docs/스윕_결과.md` 참고.
 
 ## 서버
 
@@ -92,8 +127,8 @@ docs/              베이스라인 기록, 서버 환경
 비용만 붙으므로, 2장이면 실험 두 개를 병렬로 돌린다.**
 
 ```bash
-CUDA_VISIBLE_DEVICES=4 python train.py --config a &
-CUDA_VISIBLE_DEVICES=5 python train.py --config b &
+CUDA_VISIBLE_DEVICES=4 python -m run.train --config configs/a.json &
+CUDA_VISIBLE_DEVICES=5 python -m run.train --config configs/b.json &
 ```
 
 캐시는 저장소 밖에 둔다.

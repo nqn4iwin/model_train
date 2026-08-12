@@ -9,8 +9,8 @@
 같은 `raw`를 넣어 같은 `scores`가 나오면, 두 벌이 같은 잣대라는 것이 실제 출력
 수백 건 위에서 확인된다. import 가 되는지보다 이쪽이 강한 증거다.
 
-사용:
-    python test_scoring.py <records.jsonl 경로>
+사용 (**저장소 뿌리에서 `-m`으로 부른다**):
+    python -m tests.test_scoring <records.jsonl 경로>
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ import json
 import sys
 from pathlib import Path
 
-from scoring import KEYS, score_blind
+from sft.scoring import KEYS, score_blind
 
 
 def main() -> None:
@@ -47,6 +47,14 @@ def main() -> None:
     print(f"\n대조 {checked}건 · 어긋남 {mismatched}건 · 건너뜀 {skipped}건")
     if mismatched:
         raise SystemExit("채점기가 갈라졌습니다. 옮겨 심은 쪽을 원본에 맞추세요.")
+    # **한 건도 못 댔으면 통과라고 하면 안 된다.** `data_collect`가 품질 필터까지 걸어
+    # 넘긴 파일에는 `raw`도 `scores`도 없어서 여기가 조용히 0건이 된다. 그것을 "같은
+    # 잣대입니다"로 찍으면 확인한 적 없는 것을 확인했다고 믿게 된다.
+    if not checked:
+        raise SystemExit(
+            f"대조할 것이 없습니다 ({skipped}건 전부 raw나 scores가 없음).\n"
+            "  `annotate.py`가 막 뱉은 원본 records.jsonl을 주세요. 걸러진 뒤의\n"
+            "  파일에는 대조에 필요한 두 칸이 빠져 있습니다.")
     print("두 벌이 같은 잣대입니다.")
 
 

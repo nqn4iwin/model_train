@@ -1,6 +1,6 @@
 """이미 끝난 실험을 **저장된 채점 기록만으로** 다시 매긴다. GPU도 모델도 안 쓴다.
 
-`baseline.py`가 실험마다 `eval/records.jsonl`에 건별로 남긴 것이 있다 -- 모델이 낸
+`run/evaluate.py`가 실험마다 `eval/records.jsonl`에 건별로 남긴 것이 있다 -- 모델이 낸
 판정, 교사 판정, AM 다섯 항목, 원문 출력까지. **판정 규칙이 바뀌었을 때 다시 학습할
 이유가 없는 것은 이 파일 때문이다.** 다시 돌려도 같은 숫자가 나오고, 바뀌는 것은
 그 숫자에 붙는 이름표뿐이다.
@@ -12,9 +12,9 @@
 **AM 값은 다시 계산해도 같아야 한다.** 달라지면 채점 규칙이 조용히 바뀐 것이므로
 경고를 낸다 -- 라운드끼리 비교가 끊기는 종류의 사고다.
 
-사용:
-    python rescore.py              무엇이 바뀌는지 보여만 준다
-    python rescore.py --write      summary.json에 실제로 반영한다
+사용 (**저장소 뿌리에서 `-m`으로 부른다**):
+    python -m run.rescore              무엇이 바뀌는지 보여만 준다
+    python -m run.rescore --write      summary.json을 고치고 표를 다시 쓴다
 """
 from __future__ import annotations
 
@@ -22,16 +22,17 @@ import argparse
 import json
 from pathlib import Path
 
-from scoring import KEYS, collapsed, skew, verdict
-from sweep import write_table
-from train import read_config
+from run.sweep import write_table
+from run.train import read_config
+from sft.scoring import KEYS, collapsed, skew, verdict
 
-HERE = Path(__file__).resolve().parent
+# run/ 안에 있으므로 저장소 뿌리는 한 단계 위다.
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def row_for(name: str, summary: dict, prior: dict) -> dict:
     """`sweep.py`가 만드는 것과 같은 모양의 표 한 줄. 설정에서 메모와 방식 이름을 붙인다."""
-    path = HERE / "configs" / f"{name}.json"
+    path = ROOT / "configs" / f"{name}.json"
     config = read_config(path) if path.exists() else {}
     return {"stage": "끝", "verdict": summary["verdict"],
             "note": config.get("note", ""),
@@ -46,7 +47,7 @@ def row_for(name: str, summary: dict, prior: dict) -> dict:
 
 
 def regrade(records: list[dict]) -> dict:
-    """건별 기록에서 요약 값을 다시 만든다. `baseline.py`의 집계와 같은 식이다."""
+    """건별 기록에서 요약 값을 다시 만든다. `run.evaluate`의 집계와 같은 식이다."""
     rates = {k: round(sum(r["scores"][k] for r in records) / len(records), 3)
              for k in KEYS}
     said = [r.get("judgement", "") for r in records]
@@ -66,7 +67,7 @@ def regrade(records: list[dict]) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--runs", type=Path, default=HERE / "runs")
+    ap.add_argument("--runs", type=Path, default=ROOT / "runs")
     ap.add_argument("--write", action="store_true",
                     help="summary.json을 실제로 고친다. 기본은 보여주기만 한다")
     args = ap.parse_args()
@@ -124,8 +125,8 @@ def main() -> None:
         print(f"\n표를 다시 썼습니다: runs/sweep.md · runs/sweep.json ({len(table)}줄)")
     else:
         print("\n보여주기만 했습니다. 반영하려면 --write 를 붙이세요.")
-        print("**`sweep.py --all`은 부르지 마세요** -- 결과가 없는 설정을 아직 안 돌린 것으로")
-        print("보고 다시 학습시킵니다. `못 돌림` 열 개가 전부 다시 돌아갑니다.")
+        print("**`run.sweep --all`은 부르지 마세요** -- 결과가 없는 설정을 아직 안 돌린")
+        print("것으로 보고 다시 학습시킵니다. `못 돌림` 열 개가 전부 다시 돌아갑니다.")
 
 
 if __name__ == "__main__":

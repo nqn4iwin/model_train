@@ -1,21 +1,26 @@
-"""학습 전 KORMo를 채점한다. **이 값이 없으면 학습 후 점수를 해석할 수 없다.**
+"""KORMo를 홀드아웃에 걸어 채점한다. **학습 전과 후에 같은 파일을 쓴다.**
+
+`--adapter` 없이 부르면 학습 전(제로샷) 값이고, 주면 그 어댑터를 얹은 학습 후 값이다.
+**이 둘이 같은 도구로 재져야 한다.**
 
     학습 전이 20%였는데 학습 후 65%  ->  학습이 먹었다
     학습 전이 90%였는데 학습 후 65%  ->  학습이 망쳤다
 
-같은 65%인데 정반대다. 기획서 3.3이 '베이스라인: 제로샷 KORMo'로 적어둔 값이 이것이다.
+같은 65%인데 정반대다. 기획서 3.3이 '베이스라인: 제로샷 KORMo'로 적어둔 값이 앞엣것이고,
+`docs/베이스라인_기록.md`에 있다.
 
-**학습 후 채점에도 같은 파일을 쓴다.** `--adapter`에 LoRA 어댑터 경로를 주면 그것을
-얹어 같은 홀드아웃에 같은 잣대를 건다. 재는 도구가 갈라지면 앞뒤를 비교할 수 없다.
+2026-08-12에 `baseline.py`에서 이름을 바꿨다. 학습 전 값을 재려고 만들었지만 실제로는
+학습 후 채점에 훨씬 많이 쓰여, 이름이 하는 일과 어긋나 있었다.
 
 **생성은 기본이 greedy다.** 온도를 주면 같은 조건을 다시 돌렸을 때 값이 흔들려,
 학습 효과와 노이즈를 못 가른다. 흔들림을 보고 싶으면 `--temperature`와 `--repeat`을
 같이 준다.
 
-사용:
-    python baseline.py --data data/20260811__annotate__v2.2/holdout.jsonl \\
-                       --out runs/baseline-kormo-rules
-    python baseline.py ... --adapter runs/lora-full-rules/final
+사용 (**저장소 뿌리에서 `-m`으로 부른다**):
+    CUDA_VISIBLE_DEVICES=4 python -m run.evaluate \\
+        --data data/20260811__annotate__v2.2/holdout.jsonl \\
+        --out runs/baseline-kormo-rules
+    CUDA_VISIBLE_DEVICES=4 python -m run.evaluate ... --adapter runs/delora/final
 """
 from __future__ import annotations
 
@@ -25,8 +30,8 @@ import os
 import time
 from pathlib import Path
 
-from formatting import build_prompt
-from scoring import KEYS, collapsed, restatement_ratio, score_blind, skew, verdict
+from sft.formatting import build_prompt
+from sft.scoring import KEYS, collapsed, restatement_ratio, score_blind, skew, verdict
 
 MODEL = "KORMo-Team/KORMo-10B-base"
 
@@ -76,7 +81,7 @@ def main() -> None:
     if not os.environ.get("CUDA_VISIBLE_DEVICES"):
         raise SystemExit(
             "CUDA_VISIBLE_DEVICES를 지정하세요. 이 프로젝트 몫은 4·5번입니다.\n"
-            "  CUDA_VISIBLE_DEVICES=4 python baseline.py ...")
+            "  CUDA_VISIBLE_DEVICES=4 python -m run.evaluate ...")
 
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
