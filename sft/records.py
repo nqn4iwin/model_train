@@ -51,10 +51,17 @@ def usable(record: dict) -> bool:
 
     교사 호출이 실패했거나(`error`), 교사 출력이 JSON으로 안 읽힌 것(`AM1`이 0)은
     정답이 없으므로 쓸 수 없다.
+
+    **`scores`가 있어도 `AM*`가 하나도 없으면 거르지 않는다.** `data_collect`의 생성
+    쪽(역할 B) `scores`에는 `BM1~BM7`만 들어 있다. `"scores" in record`만 보고 걸렀다면
+    `scores.get("AM1")`이 `None`이라 **넘어온 것이 전량 조용히 버려진다** -- 에러가 안
+    나고 건수만 0이 되는 종류의 사고다. 지금은 최종 파일에 `scores`를 안 담기로
+    정리돼 있지만, 그것은 남의 저장소의 운영이지 이쪽이 보장할 수 있는 것이 아니다.
     """
     if "error" in record:
         return False
-    if "scores" in record and not record["scores"].get("AM1"):
+    scores = record.get("scores")
+    if scores and any(k.startswith("AM") for k in scores) and not scores.get("AM1"):
         return False
     return record.get("judgement") in {"positive", "negative"}
 
@@ -74,5 +81,13 @@ def split(records: list[dict]) -> tuple[list[dict], list[dict], Counter]:
             dropped["평가셋 11건과 겹침"] += 1
             continue
         slim = {k: record.get(k) for k in FIELDS}
-        (holdout if record["series"] == HOLDOUT_SERIES else train).append(slim)
+        # **합성분은 계열에 `synth:` 접두가 붙어 온다** -- `synth:mof_rd_regulation_pair`.
+        # 정확일치로 두면 그것이 이 필터를 그냥 통과해 학습셋으로 들어간다. 합성 pair는
+        # 원천 조항을 그대로 가져다 개정문만 새로 쓰므로, **채점에 쓰는 바로 그 조항으로
+        # 학습하게 되고 점수가 부풀려진다.** 접두를 떼고 비교한다.
+        #
+        # `slim`에는 접두가 붙은 원래 값을 그대로 남긴다. 어느 것이 합성분인지는
+        # 나중에 계열별로 세어 볼 때 필요한 정보다.
+        series = record["series"].removeprefix("synth:")
+        (holdout if series == HOLDOUT_SERIES else train).append(slim)
     return train, holdout, dropped
