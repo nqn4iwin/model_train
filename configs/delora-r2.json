@@ -1,0 +1,19 @@
+{
+  "extends": "_base.json",
+  "name": "delora-r2",
+  "note": "2라운드 DeLoRA x full. 1라운드에서 seed 셋이 다 살아남은 유일한 조합이다(81.1 · 89.2 · 91.9%, 평균 87.4%). 3에폭이 정점이었다",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "peft": {
+    "peft_type": "DELORA",
+    "r": 32,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "extends": "_base.json",
+  "name": "delora-sentence-r2",
+  "note": "2라운드 DeLoRA x sentence. 두 탈출로(방법 축 · 데이터 조건 축)가 겹친 자리다. 1라운드 3에폭에서 89.2%로 full(91.9%)보다 1건 낮았는데 seed 흔들림이 4건이라 우열은 못 갈랐다. **채점 주의: sentence 조건은 labels를 안 내므로 라벨일치가 구조적으로 0%이고, AM8s가 (37-positive)/37이라 정답대로 맞힐수록 자동 탈락에 가까워진다. docs/TODO.md의 미결 항목 둘이 이 설정에 걸린다**",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "target": "sentence",
+  "peft": {
+    "peft_type": "DELORA",
+    "r": 32,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}

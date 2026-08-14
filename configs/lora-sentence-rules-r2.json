@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-sentence-rules-r2",
+  "note": "2라운드 LoRA x sentence. 데이터 조건 쪽 탈출로가 2라운드에서도 여전한지 본다. 1라운드 78.4%. **채점 주의: sentence 조건이라 delora-sentence-r2와 같은 미결 항목 둘에 걸린다**",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "target": "sentence"
+}

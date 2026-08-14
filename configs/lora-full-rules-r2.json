@@ -1,0 +1,6 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-rules-r2",
+  "note": "2라운드 대조군. 평범한 LoRA x full이고 _base.json의 기준 조건 그대로다. 1라운드에서 붕괴했지만 그 붕괴는 데이터가 판 함정(negative 45.9% · negative 정답이 23토큰으로 제일 짧음)을 못 피한 것이었다. 2라운드는 negative가 약 16%로 내려가 함정이 약해지므로, 이것이 되살아나는지가 곧 '함정이 사라졌는가'의 눈금이다. 제일 싸고 표준적인 것이 되면 그게 답이다. 빼면 안 된다",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl"
+}
