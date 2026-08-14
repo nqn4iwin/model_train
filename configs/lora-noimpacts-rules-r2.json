@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-noimpacts-rules-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "축1 impacts 배열만 뺌",
+  "target": "no-impacts"
+}

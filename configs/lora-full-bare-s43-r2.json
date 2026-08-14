@@ -1,0 +1,8 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-bare-s43-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "lora-full-bare seed 43",
+  "seed": 43,
+  "rules": false
+}

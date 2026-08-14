@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-nonegative-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "축2 negative 제거",
+  "negatives": "drop"
+}

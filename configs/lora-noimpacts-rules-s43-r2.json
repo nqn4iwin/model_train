@@ -1,0 +1,8 @@
+{
+  "extends": "_base.json",
+  "name": "lora-noimpacts-rules-s43-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "lora-noimpacts-rules seed 43",
+  "seed": 43,
+  "target": "no-impacts"
+}

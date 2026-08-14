@@ -1,0 +1,21 @@
+{
+  "extends": "_base.json",
+  "name": "adalora-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "AdaLoRA. total_step은 1655/(1x8)x3 = 621에서 나온 값이라 데이터나 배치를 바꾸면 같이 바꾼다. 1라운드는 562건 기준 211이었다",
+  "peft": {
+    "peft_type": "ADALORA",
+    "init_r": 64,
+    "target_r": 16,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "total_step": 621
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "extends": "_base.json",
+  "name": "lora-r8-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "rank 8",
+  "peft": {
+    "peft_type": "LORA",
+    "r": 8,
+    "lora_alpha": 16,
+    "lora_dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "bias": "none"
+  }
+}

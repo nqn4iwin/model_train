@@ -1,0 +1,18 @@
+{
+  "extends": "_base.json",
+  "name": "c3a-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "C3A (인자 최소)",
+  "peft": {
+    "peft_type": "C3A",
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}

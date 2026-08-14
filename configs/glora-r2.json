@@ -1,0 +1,18 @@
+{
+  "extends": "_base.json",
+  "name": "glora-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "GLORA (인자 최소)",
+  "peft": {
+    "peft_type": "GLORA",
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}

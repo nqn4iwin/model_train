@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-down120-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "축2 계열 다운샘플 120",
+  "downsample": 120
+}

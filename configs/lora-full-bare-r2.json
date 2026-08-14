@@ -1,0 +1,7 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-bare-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "축1 규칙서 없음",
+  "rules": false
+}

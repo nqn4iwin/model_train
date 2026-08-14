@@ -1,0 +1,8 @@
+{
+  "extends": "_base.json",
+  "name": "lora-full-down120-s43-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "lora-full-down120 seed 43",
+  "seed": 43,
+  "downsample": 120
+}
