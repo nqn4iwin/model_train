@@ -1,0 +1,33 @@
+{
+  "source": "combined_1698.jsonl",
+  "source_run": "scratchpad",
+  "source_records": 1698,
+  "holdout_frozen": true,
+  "holdout_series": "mof_rd_regulation_pair",
+  "train": 1655,
+  "holdout": 37,
+  "train_judgements": {
+    "negative": 264,
+    "positive": 1391
+  },
+  "train_series": {
+    "mpm_privacy_policy": 358,
+    "mss_rd_guideline_pair": 16,
+    "mss_tips_support_notice_pair": 2,
+    "regional_industry_guideline_pair": 149,
+    "tips_operating_guideline_pair": 37,
+    "synth:ftc_game_terms": 368,
+    "synth:ftc_gift_certificate_terms": 63,
+    "synth:mois_opendata_eval_manual": 36,
+    "synth:mss_rd_guideline_pair": 207,
+    "synth:regional_industry_guideline_pair": 218,
+    "synth:tips_operating_guideline_pair": 201
+  },
+  "holdout_judgements": {
+    "negative": 11,
+    "positive": 26
+  },
+  "dropped": {
+    "평가셋 11건과 겹침": 7
+  }
+}
