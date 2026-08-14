@@ -1,6 +1,19 @@
 # model_train
 
-**서버 결과 당겨오기** -- PowerShell 아니고 **WSL**에서. 이 한 줄이 전부다.
+## 매번 치는 두 줄
+
+**서버에서 -- 무엇을 하든 이것부터.** 안 켜면 시스템 파이썬이 잡혀
+`ModuleNotFoundError: No module named 'torch'`가 난다.
+
+```bash
+cd /data1/yblee/repository/model_train && source .venv/bin/activate
+```
+
+`run/sweep.py`가 `sys.executable`로 자식을 띄우므로 **한 번 켜두면 스윕이 띄우는
+학습·채점도 전부 이 venv를 쓴다.** 이 `.venv`는 `continuous-training`의 것을 같이 쓰다가
+따로 판 것이다 -- 이유와 판본은 `docs/서버환경.md`에 있다.
+
+**로컬에서 -- 결과 당겨오기.** PowerShell 아니고 **WSL**이다. `rsync`와 `bash`를 쓴다.
 
 ```bash
 cd /mnt/c/Users/DACON/workspace/model_train && SERVER=<서버주소> bash sync_runs.sh
