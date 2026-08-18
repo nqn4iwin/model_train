@@ -9,7 +9,7 @@
 cd /data1/yblee/repository/model_train && source .venv/bin/activate
 ```
 
-`run/sweep.py`가 `sys.executable`로 자식을 띄우므로 **한 번 켜두면 스윕이 띄우는
+`cli/sweep.py`가 `sys.executable`로 자식을 띄우므로 **한 번 켜두면 스윕이 띄우는
 학습·채점도 전부 이 venv를 쓴다.** 이 `.venv`는 `continuous-training`의 것을 같이 쓰다가
 따로 판 것이다 -- 이유와 판본은 `docs/서버환경.md`에 있다.
 
@@ -40,7 +40,7 @@ sft/                 import 해서 쓰는 것. torch도 GPU도 안 부르는 순
   scoring.py         정답키 없이 매기는 채점기. data_collect에서 옮겨 심은 것
   formatting.py      레코드 -> 프롬프트·정답 조립. 실험 조건이 여기서 갈린다
   records.py         교사 해석에서 쓸 것을 거르고 학습용·평가용으로 가르는 규칙
-run/                 명령줄에서 부르는 것
+cli/                 명령줄에서 부르는 것 (command-line interface)
   build_records.py   위 규칙으로 데이터 파일을 만든다
   train.py           설정 JSON 하나로 PEFT 학습 한 번
   evaluate.py        학습 전/후 KORMo를 같은 잣대로 채점
@@ -51,34 +51,41 @@ tests/
 configs/             _base.json 을 물려받고 바뀌는 칸만 적는다
 prompts/             역할 A 규칙서
 data/                얼려둔 학습 데이터. 폴더 이름에 날짜와 판본을 박는다
-docs/                베이스라인 기록, 스윕 결과, 에폭 결과, 서버 환경, PLAN·TODO
+docs/
+  HISTORY.md         연표 · 라운드마다 무엇을 몇 개 돌렸나 · 무엇이 뒤집혔나. 여기부터 읽는다
+  베이스라인_기록.md  학습 전 KORMo 값
+  스윕_결과.md        1차 스윕 70줄
+  2차_스윕_결과.md    2차 스윕 66줄
+  에폭_결과.md        에폭 축
+  서버환경.md         서버·판본·문맥 길이
+  PLAN.md TODO.md    앞으로 할 일 (git 추적 안 함)
 runs/                실험 결과. 커밋하지 않는다 (sync_runs.sh 로 당겨온다)
 ```
 
 ## 실행하는 법 — 반드시 `-m`으로, 저장소 뿌리에서
 
 ```bash
-python -m run.train --config configs/delora.json
+python -m cli.train --config configs/delora.json
 ```
 
-**`python run/train.py`로는 안 된다.** 그렇게 부르면 파이썬이 `run/` 폴더를 기준으로
+**`python cli/train.py`로는 안 된다.** 그렇게 부르면 파이썬이 `cli/` 폴더를 기준으로
 모듈을 찾아 `sft`를 못 보고 `ModuleNotFoundError: No module named 'sft'`가 난다.
 `-m`은 **지금 있는 폴더**를 기준으로 삼으므로, 저장소 뿌리에서 부르면 둘 다 보인다.
 
 | 하려는 것 | 명령 |
 | --- | --- |
-| 데이터 만들기 | `python -m run.build_records <records.jsonl> --out data/<날짜>__<판본>` |
-| 설정만 검사 | `python -m run.sweep --check` |
-| 한 건 학습 | `CUDA_VISIBLE_DEVICES=4 python -m run.train --config configs/delora.json` |
-| 토큰 길이만 확인 | `python -m run.train --config configs/delora.json --inspect` |
-| 채점 | `CUDA_VISIBLE_DEVICES=4 python -m run.evaluate --data <holdout> --adapter <경로> --out <경로>` |
-| 여러 건 한꺼번에 | `python -m run.sweep --all` |
-| 판정만 다시 매기기 | `python -m run.rescore --write` |
+| 데이터 만들기 | `python -m cli.build_records <records.jsonl> --out data/<날짜>__<판본>` |
+| 설정만 검사 | `python -m cli.sweep --check` |
+| 한 건 학습 | `CUDA_VISIBLE_DEVICES=4 python -m cli.train --config configs/delora.json` |
+| 토큰 길이만 확인 | `python -m cli.train --config configs/delora.json --inspect` |
+| 채점 | `CUDA_VISIBLE_DEVICES=4 python -m cli.evaluate --data <holdout> --adapter <경로> --out <경로>` |
+| 여러 건 한꺼번에 | `python -m cli.sweep --all` |
+| 판정만 다시 매기기 | `python -m cli.rescore --write` |
 | 채점기 대조 | `python -m tests.test_scoring <records.jsonl>` |
 
 **`--all`은 결과가 이미 있는 상태에서 부르면 안 된다.** `summary.json`이 없는 설정을
 아직 안 돌린 것으로 보고 다시 학습시키므로, 학습이 실패했던 설정들이 전부 다시 돈다.
-표만 다시 만들려면 `run.rescore --write`를 쓴다.
+표만 다시 만들려면 `cli.rescore --write`를 쓴다.
 
 ## 학습 엔진
 
@@ -148,9 +155,14 @@ AM 점수와 무관하게 실패다. 게으른 답 하나가 다섯 항목을 �
 2026-08-12 스윕에서 AM 평균 상위 21개가 전부 만점 붕괴였다. `docs/스윕_결과.md` 참고.
 
 **그리고 이 다섯으로는 산출물의 질을 못 잰다.** 다섯 다 형식 검사이고, 교사일치도
-`judgement` 한 칸만 본다. 판정을 91.9% 맞히는 모델의 `(대상, 방향)` 목록이 교사와
-완전히 같은 것은 20.8%였다 -- `docs/에폭_결과.md` 6절. 채점기에 넣는 일은
-`docs/TODO.md`에 있다.
+`judgement` 한 칸만 본다. **2026-08-18에 `라벨일치` 열을 더했다** -- 판정 한 칸이 아니라
+그 안의 `(대상, 방향)` 집합이 교사와 같은가다. 분모는 교사가 라벨을 단 건이고
+(`sentence` 조건은 `해당 없음`), `verdict`에는 안 쓴다.
+
+**그래도 산출물의 질은 아직 못 잰다.** 이 과제가 내놓는 것은 `direct_impact` 문장인데
+위 여섯은 전부 그 앞 단계다. **라벨이 달라도 문장은 얼추 같은 경우가 흔하므로,
+라벨일치가 낮다고 그만큼 못 배운 것이 아니다.** 문장은 `python -m cli.readout`으로
+교사 것과 나란히 놓고 사람이 읽는다. 재는 열을 넣는 일은 `docs/TODO.md` 맨 위에 있다.
 
 ## 서버
 
@@ -159,8 +171,8 @@ AM 점수와 무관하게 실패다. 게으른 답 하나가 다섯 항목을 �
 비용만 붙으므로, 2장이면 실험 두 개를 병렬로 돌린다.**
 
 ```bash
-CUDA_VISIBLE_DEVICES=4 python -m run.train --config configs/a.json &
-CUDA_VISIBLE_DEVICES=5 python -m run.train --config configs/b.json &
+CUDA_VISIBLE_DEVICES=4 python -m cli.train --config configs/a.json &
+CUDA_VISIBLE_DEVICES=5 python -m cli.train --config configs/b.json &
 ```
 
 캐시는 저장소 밖에 둔다.

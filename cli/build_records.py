@@ -4,7 +4,7 @@
 무엇이 얼마나 버려졌는지 사람에게 보여주는 것**만 한다.
 
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
-    python -m run.build_records <records.jsonl 경로> --out data/20260811__annotate__v2.2
+    python -m cli.build_records <records.jsonl 경로> --out data/20260811__annotate__v2.2
 """
 from __future__ import annotations
 

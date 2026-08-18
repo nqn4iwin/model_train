@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 2라운드 스윕이 중간에 죽었을 때 이어서 돌린다. **몇 번을 다시 불러도 안전하다.**
 #
-# 이어서 돌리는 장치는 이미 `run/sweep.py`의 collect()에 있다 -- `runs/<이름>/eval/
+# 이어서 돌리는 장치는 이미 `cli/sweep.py`의 collect()에 있다 -- `runs/<이름>/eval/
 # summary.json`이 있는 실험은 큐에서 뺀다. 그래서 같은 명령을 다시 부르는 것만으로
 # 끝난 것은 건너뛴다. 이 스크립트가 그 위에 더하는 것은 셋이다.
 #
@@ -36,7 +36,7 @@ PY_BIN="$(command -v python || command -v python3)" || {
 
 INFO=$("$PY_BIN" - "${CONFIGS[@]}" <<'PY'
 import sys
-from run.train import read_config
+from cli.train import read_config
 for p in sys.argv[1:]:
     c = read_config(p)
     print(f"{p}\t{c['name']}\t{c['output_dir']}")
@@ -60,7 +60,7 @@ if [ ${#left[@]} -gt 0 ]; then
     else echo "  남은 것: ${left[*]:0:10} ... 외 $(( ${#left[@]} - 10 ))개"; fi
 fi
 
-if pgrep -f "[p]ython[0-9.]* -m run\.sweep" > /dev/null; then
+if pgrep -f "[p]ython[0-9.]* -m cli\.sweep" > /dev/null; then
     echo
     echo "**스윕이 아직 살아 있다. 아무것도 안 한다.**"
     echo "  진행: tail -f $LOG"
@@ -78,7 +78,7 @@ fi
 for item in "${orphan[@]+"${orphan[@]}"}"; do
     name="${item%%|*}"; out="${item#*|}"
     echo; echo "채점만 다시: $name (GPU $GPU)"
-    CUDA_VISIBLE_DEVICES="$GPU" "$PY_BIN" -m run.evaluate \
+    CUDA_VISIBLE_DEVICES="$GPU" "$PY_BIN" -m cli.evaluate \
         --data "$HOLDOUT" --adapter "$out/final" --out "$out/eval" \
         >> "runs/$name.log" 2>&1 \
         && echo "  붙였다" || echo "  실패. runs/$name.log 를 본다 (sweep이 학습부터 다시 한다)"
@@ -86,8 +86,8 @@ done
 
 echo
 echo "스윕을 다시 띄운다. 끝난 것은 sweep이 알아서 건너뛴다."
-nohup "$PY_BIN" -m run.sweep --slots-per-gpu 1 --configs "${CONFIGS[@]}" >> "$LOG" 2>&1 < /dev/null &
+nohup "$PY_BIN" -m cli.sweep --slots-per-gpu 1 --configs "${CONFIGS[@]}" >> "$LOG" 2>&1 < /dev/null &
 sleep 2
-pgrep -f "[p]ython[0-9.]* -m run\.sweep" > /dev/null \
-    && echo "떴다 (pid $(pgrep -f '[p]ython[0-9.]* -m run\.sweep' | head -1)). 진행: tail -f $LOG" \
+pgrep -f "[p]ython[0-9.]* -m cli\.sweep" > /dev/null \
+    && echo "떴다 (pid $(pgrep -f '[p]ython[0-9.]* -m cli\.sweep' | head -1)). 진행: tail -f $LOG" \
     || echo "**안 떴다.** $LOG 끝을 본다."

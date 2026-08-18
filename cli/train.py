@@ -15,8 +15,8 @@
    방식은 여기서 에러가 난다.** 그것을 알아내는 것이 이 스윕의 목적이다.
 
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
-    python -m run.train --config configs/delora.json --inspect   # 안 돌리고 확인만
-    CUDA_VISIBLE_DEVICES=4 python -m run.train --config configs/delora.json
+    python -m cli.train --config configs/delora.json --inspect   # 안 돌리고 확인만
+    CUDA_VISIBLE_DEVICES=4 python -m cli.train --config configs/delora.json
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from pathlib import Path
 
 from sft.formatting import build_completion, build_prompt
 
-# 이 파일은 run/ 안에 있고 configs·data·runs는 저장소 뿌리에 있으므로 한 단계 올라간다.
+# 이 파일은 cli/ 안에 있고 configs·data·runs는 저장소 뿌리에 있으므로 한 단계 올라간다.
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -263,7 +263,7 @@ def main() -> None:
     trainer.save_state()
     print(f"\n저장: {output_dir / 'final'}")
     print("채점:")
-    print(f"  CUDA_VISIBLE_DEVICES=$GPU python -m run.evaluate \\")
+    print(f"  CUDA_VISIBLE_DEVICES=$GPU python -m cli.evaluate \\")
     print(f"      --data data/20260811__annotate__v2.2/holdout.jsonl \\")
     print(f"      --adapter {config['output_dir']}/final --out {config['output_dir']}/eval")
 

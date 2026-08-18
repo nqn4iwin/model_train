@@ -1,6 +1,6 @@
 """이미 끝난 실험을 **저장된 채점 기록만으로** 다시 매긴다. GPU도 모델도 안 쓴다.
 
-`run/evaluate.py`가 실험마다 `eval/records.jsonl`에 건별로 남긴 것이 있다 -- 모델이 낸
+`cli/evaluate.py`가 실험마다 `eval/records.jsonl`에 건별로 남긴 것이 있다 -- 모델이 낸
 판정, 교사 판정, AM 다섯 항목, 원문 출력까지. **판정 규칙이 바뀌었을 때 다시 학습할
 이유가 없는 것은 이 파일 때문이다.** 다시 돌려도 같은 숫자가 나오고, 바뀌는 것은
 그 숫자에 붙는 이름표뿐이다.
@@ -13,8 +13,8 @@
 경고를 낸다 -- 라운드끼리 비교가 끊기는 종류의 사고다.
 
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
-    python -m run.rescore              무엇이 바뀌는지 보여만 준다
-    python -m run.rescore --write      summary.json을 고치고 표를 다시 쓴다
+    python -m cli.rescore              무엇이 바뀌는지 보여만 준다
+    python -m cli.rescore --write      summary.json을 고치고 표를 다시 쓴다
 """
 from __future__ import annotations
 
@@ -22,12 +22,17 @@ import argparse
 import json
 from pathlib import Path
 
-from run.sweep import write_table
-from run.train import read_config
-from sft.scoring import KEYS, collapsed, skew, verdict
+from cli.sweep import write_table
+from cli.train import read_config
+from sft.scoring import KEYS, collapsed, label_agreement, skew, verdict
 
-# run/ 안에 있으므로 저장소 뿌리는 한 단계 위다.
+# cli/ 안에 있으므로 저장소 뿌리는 한 단계 위다.
 ROOT = Path(__file__).resolve().parents[1]
+
+# 교사 라벨을 여기서 가져온다. **`records.jsonl`에는 교사 판정만 있고 교사 라벨이 없다** --
+# 옛 실험 100여 개가 그렇다. 그래서 `id`로 홀드아웃과 맞붙인다. `cli/sweep.py:37`과 같은
+# 얼려둔 파일이라 어느 라운드를 다시 매기든 같은 37건 위에서 이뤄진다.
+HOLDOUT = "data/20260811__annotate__v2.2/holdout.jsonl"
 
 
 def row_for(name: str, summary: dict, prior: dict) -> dict:
@@ -38,7 +43,9 @@ def row_for(name: str, summary: dict, prior: dict) -> dict:
             "note": config.get("note", ""),
             "peft_type": config.get("peft", {}).get("peft_type", "-"),
             **summary["AM_rates"], "평균": summary["AM_mean"],
+            "에폭": config.get("num_train_epochs"),
             "교사일치": summary.get("teacher_agreement"),
+            "라벨일치": summary.get("label_agreement"),
             "쏠림": summary.get("skew"),
             "판정": summary.get("judgements"),
             "안 멈춤": summary.get("rambled_outputs"),
@@ -46,8 +53,13 @@ def row_for(name: str, summary: dict, prior: dict) -> dict:
             "분": prior.get("분", "-")}
 
 
-def regrade(records: list[dict]) -> dict:
-    """건별 기록에서 요약 값을 다시 만든다. `run.evaluate`의 집계와 같은 식이다."""
+def regrade(records: list[dict], teacher: dict[str, list] | None = None,
+            label_free: bool = False) -> dict:
+    """건별 기록에서 요약 값을 다시 만든다. `cli.evaluate`의 집계와 같은 식이다.
+
+    `teacher`는 `{id: 교사 labels}`다. 기록 자체에 `teacher_labels`가 있으면 그것을 먼저
+    쓰고, 없으면(옛 실험이 그렇다) 이 사전에서 `id`로 찾는다.
+    """
     rates = {k: round(sum(r["scores"][k] for r in records) / len(records), 3)
              for k in KEYS}
     said = [r.get("judgement", "") for r in records]
@@ -62,15 +74,41 @@ def regrade(records: list[dict]) -> dict:
         "skew": skew(said),
         "teacher_agreement": round(matched / len(records), 3),
         "judgements": {j: said.count(j) for j in set(said)},
+        **_labels(records, teacher or {}, label_free),
     }
+
+
+def _labels(records: list[dict], teacher: dict[str, list],
+            label_free: bool = False) -> dict:
+    """라벨일치를 요약 모양으로 만든다. 값이 없으면 `None`으로 둔다."""
+    agreement = label_agreement([
+        (r.get("labels"), r.get("teacher_labels", teacher.get(r.get("id"))))
+        for r in records], label_free)
+    return {"label_agreement": agreement["rate"],
+            "label_matched": agreement["matched"],
+            "label_denominator": agreement["denominator"],
+            "label_note": agreement["note"]}
+
+
+def read_teacher(path: Path) -> dict[str, list]:
+    """홀드아웃에서 `{id: labels}`만 뽑는다."""
+    teacher = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            row = json.loads(line)
+            teacher[row["id"]] = row.get("labels")
+    return teacher
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--runs", type=Path, default=ROOT / "runs")
+    ap.add_argument("--data", default=HOLDOUT,
+                    help="교사 라벨을 가져올 홀드아웃. 얼려둔 것을 그대로 쓴다")
     ap.add_argument("--write", action="store_true",
                     help="summary.json을 실제로 고친다. 기본은 보여주기만 한다")
     args = ap.parse_args()
+    teacher = read_teacher(ROOT / args.data)
 
     # 전에 만든 표를 바탕으로 삼는다. **`못 돌림` 줄은 기록이 없어서 여기서만 나온다** --
     # 새로 짓겠다고 버리면 학습 자체가 실패한 열 개가 표에서 사라진다.
@@ -87,7 +125,21 @@ def main() -> None:
             broken.append((name, "records.jsonl이 비었습니다"))
             continue
 
-        fresh = regrade(records)
+        # **홀드아웃 건수보다 적으면 실험이 아니라 채점 찌꺼기다.** 2026-08-18에
+        # `runs/frod/eval/`에 한 줄짜리가 남아 있어, 표에서 `못 돌림`이던 1차 frod가
+        # 1건짜리 `됨`으로 뒤집힐 뻔했다. 여기서 막지 않으면 옛 라운드의 기록이
+        # 조용히 거짓이 된다. 반복 채점(`--repeat`)은 건수가 늘어나므로 안 걸린다.
+        if teacher and len(records) < len(teacher):
+            broken.append((name, f"{len(records)}건뿐입니다 (홀드아웃 {len(teacher)}건)"
+                                 " -- 채점 찌꺼기로 보고 건너뜁니다"))
+            continue
+
+        # `target`은 **실제로 돌아간 설정**에서 읽는다. `cli/train.py`가 실험 폴더에
+        # `config.json`을 남기므로, `configs/`에 파일이 없는 기준 조건도 여기서 나온다.
+        ran = records_path.parents[1] / "config.json"
+        target = (json.loads(ran.read_text(encoding="utf-8")).get("target")
+                  if ran.exists() else None)
+        fresh = regrade(records, teacher, label_free=(target == "sentence"))
         old = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
 
         # AM 값이 달라지면 채점 규칙이 바뀐 것이다. 판정 이름표만 고치려던 작업이
@@ -125,7 +177,7 @@ def main() -> None:
         print(f"\n표를 다시 썼습니다: runs/sweep.md · runs/sweep.json ({len(table)}줄)")
     else:
         print("\n보여주기만 했습니다. 반영하려면 --write 를 붙이세요.")
-        print("**`run.sweep --all`은 부르지 마세요** -- 결과가 없는 설정을 아직 안 돌린")
+        print("**`cli.sweep --all`은 부르지 마세요** -- 결과가 없는 설정을 아직 안 돌린")
         print("것으로 보고 다시 학습시킵니다. `못 돌림` 열 개가 전부 다시 돌아갑니다.")
 
 

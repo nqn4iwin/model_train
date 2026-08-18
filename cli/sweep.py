@@ -12,12 +12,12 @@ GPU를 쓰기 전에 몇 초 만에 가려낸다. IA3·VeRA처럼 구조를 가�
 
 **결과가 이미 있는 상태에서 `--all`을 부르면 안 된다.** `summary.json`이 없는 설정을
 아직 안 돌린 것으로 보고 다시 학습시키므로, 학습 자체가 실패했던 `못 돌림` 설정들이
-전부 다시 돈다. 표만 다시 만들려면 `python -m run.rescore --write`를 쓴다.
+전부 다시 돈다. 표만 다시 만들려면 `python -m cli.rescore --write`를 쓴다.
 
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
-    python -m run.sweep --check                   설정만 검사하고 끝
-    python -m run.sweep --configs configs/ia3.json configs/vera.json
-    python -m run.sweep --all                     configs/ 전체 (_base 제외)
+    python -m cli.sweep --check                   설정만 검사하고 끝
+    python -m cli.sweep --configs configs/ia3.json configs/vera.json
+    python -m cli.sweep --all                     configs/ 전체 (_base 제외)
 """
 from __future__ import annotations
 
@@ -30,9 +30,9 @@ import threading
 import time
 from pathlib import Path
 
-from run.train import read_config
+from cli.train import read_config
 
-# run/ 안에 있으므로 저장소 뿌리는 한 단계 위다.
+# cli/ 안에 있으므로 저장소 뿌리는 한 단계 위다.
 ROOT = Path(__file__).resolve().parents[1]
 HOLDOUT = "data/20260811__annotate__v2.2/holdout.jsonl"
 GPUS = ["4", "5"]
@@ -72,7 +72,9 @@ def collect(path: Path) -> dict | None:
     return {"stage": "끝", "verdict": summary["verdict"],
             "note": config.get("note", ""), "peft_type": config["peft"]["peft_type"],
             **summary["AM_rates"], "평균": summary["AM_mean"],
+            "에폭": config.get("num_train_epochs"),
             "교사일치": summary.get("teacher_agreement"),
+            "라벨일치": summary.get("label_agreement"),
             "쏠림": summary.get("skew"),
             "판정": summary.get("judgements"),
             "안 멈춤": summary["rambled_outputs"], "분": "-"}
@@ -93,11 +95,11 @@ def run_one(path: Path, gpu: str, results: dict, lock: threading.Lock) -> None:
                 argv, cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT,
                 env={**os.environ, "CUDA_VISIBLE_DEVICES": gpu}).returncode
 
-    # **`-m`으로 부른다.** `python run/train.py`로 부르면 파이썬이 run/을 기준으로 모듈을
+    # **`-m`으로 부른다.** `python cli/train.py`로 부르면 파이썬이 cli/를 기준으로 모듈을
     # 찾아 sft를 못 본다. sys.executable을 쓰는 것은 지금 돌고 있는 것과 같은 가상환경의
     # 파이썬을 쓰기 위해서다 -- `python`이라고만 적으면 PATH가 다른 것을 가리킬 수 있다.
     print(f"  [GPU {gpu}] 학습 시작  {name}")
-    code = step("학습", [sys.executable, "-m", "run.train", "--config", str(path)])
+    code = step("학습", [sys.executable, "-m", "cli.train", "--config", str(path)])
     if code != 0:
         with lock:
             results[name] = {"stage": "학습", "verdict": "못 돌림", "returncode": code}
@@ -105,7 +107,7 @@ def run_one(path: Path, gpu: str, results: dict, lock: threading.Lock) -> None:
         return
 
     print(f"  [GPU {gpu}] 채점 시작  {name}")
-    code = step("채점", [sys.executable, "-m", "run.evaluate", "--data", HOLDOUT,
+    code = step("채점", [sys.executable, "-m", "cli.evaluate", "--data", HOLDOUT,
                         "--adapter", f"{out}/final", "--out", f"{out}/eval"])
     summary_path = ROOT / out / "eval" / "summary.json"
     if code != 0 or not summary_path.exists():
@@ -120,7 +122,9 @@ def run_one(path: Path, gpu: str, results: dict, lock: threading.Lock) -> None:
                          "note": config.get("note", ""),
                          "peft_type": config["peft"]["peft_type"],
                          **summary["AM_rates"], "평균": summary["AM_mean"],
+                         "에폭": config.get("num_train_epochs"),
                          "교사일치": summary.get("teacher_agreement"),
+                         "라벨일치": summary.get("label_agreement"),
                          "쏠림": summary.get("skew"),
                          "판정": summary.get("judgements"),
                          "안 멈춤": summary["rambled_outputs"],
@@ -129,8 +133,8 @@ def run_one(path: Path, gpu: str, results: dict, lock: threading.Lock) -> None:
     print(f"  [GPU {gpu}] {summary['verdict']:<6} {name}  평균 {summary['AM_mean']:.1%}")
 
 
-COLUMNS = ["AM1", "AM2", "AM3", "AM6s", "AM8s", "평균", "교사일치", "쏠림",
-           "판정", "안 멈춤", "분"]
+COLUMNS = ["에폭", "AM1", "AM2", "AM3", "AM6s", "AM8s", "평균", "교사일치",
+           "라벨일치", "쏠림", "판정", "안 멈춤", "분"]
 
 
 def cell(value, column: str) -> str:
@@ -157,6 +161,16 @@ def write_table(results: dict) -> list[str]:
              "`교사일치`는 AM 항목이 아니라 붕괴를 알아보는 눈금이다."
              " 홀드아웃이 positive 26 · negative 11이라 **무조건 negative면 29.7%,"
              " 무조건 positive면 70.3%**가 나온다. 이 두 값 근처는 붕괴로 읽는다.", "",
+             "`라벨일치`는 판정 한 칸이 아니라 **그 안의 `(대상, 방향)` 집합**이"
+             " 교사와 같은가다. **분모는 교사가 라벨을 단 건이다** -- negative 건은"
+             " 양쪽 다 비어 저절로 맞으므로 그것까지 세면 negative가 많을수록 값이"
+             " 올라간다. `-`는 `sentence`처럼 **라벨을 아예 안 내는 조건**이고"
+             " **0%가 아니라 해당 없음이다.** 합격 판정에는 안 쓴다.", "",
+             "**라벨일치가 낮다고 그만큼 못 배운 것이 아니다.** 이 과제의 산출물은"
+             " `direct_impact` 문장이고, **라벨이 달라도 그 문장은 얼추 같은 경우가"
+             " 흔하다.** 라벨은 그 문장에 이르는 중간 표시라 어느 칸으로 갈랐는지가"
+             " 갈릴 뿐이다. 그러므로 이 열은 **품질 점수가 아니라 눈금**으로 읽고,"
+             " 실제 판단은 `cli/readout.py`로 문장을 나란히 놓고 사람이 한다.", "",
              "`쏠림`은 제일 많이 낸 판정이 차지하는 몫이다. 100%면 붕괴고,"
              " 90%대는 붕괴에 가깝다. **합격 판정에는 안 쓰고 눈으로만 본다** --"
              " 결과를 보고 문턱을 세우면 라운드끼리 비교가 끊긴다.", "",

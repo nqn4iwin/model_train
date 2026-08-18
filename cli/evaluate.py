@@ -17,10 +17,10 @@
 같이 준다.
 
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
-    CUDA_VISIBLE_DEVICES=4 python -m run.evaluate \\
+    CUDA_VISIBLE_DEVICES=4 python -m cli.evaluate \\
         --data data/20260811__annotate__v2.2/holdout.jsonl \\
         --out runs/baseline-kormo-rules
-    CUDA_VISIBLE_DEVICES=4 python -m run.evaluate ... --adapter runs/delora/final
+    CUDA_VISIBLE_DEVICES=4 python -m cli.evaluate ... --adapter runs/delora/final
 """
 from __future__ import annotations
 
@@ -31,7 +31,8 @@ import time
 from pathlib import Path
 
 from sft.formatting import build_prompt
-from sft.scoring import KEYS, collapsed, restatement_ratio, score_blind, skew, verdict
+from sft.scoring import (KEYS, collapsed, label_agreement, restatement_ratio,
+                         score_blind, skew, verdict)
 
 MODEL = "KORMo-Team/KORMo-10B-base"
 
@@ -81,7 +82,7 @@ def main() -> None:
     if not os.environ.get("CUDA_VISIBLE_DEVICES"):
         raise SystemExit(
             "CUDA_VISIBLE_DEVICES를 지정하세요. 이 프로젝트 몫은 4·5번입니다.\n"
-            "  CUDA_VISIBLE_DEVICES=4 python -m run.evaluate ...")
+            "  CUDA_VISIBLE_DEVICES=4 python -m cli.evaluate ...")
 
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -137,6 +138,10 @@ def main() -> None:
                 # 교사는 사람이 아니라 정답키가 못 되고, 잣대를 섞으면 교사 값과의
                 # 비교가 끊긴다. 붕괴를 알아보는 데만 쓴다.
                 "teacher_judgement": row.get("judgement"),
+                # 교사가 읽어낸 (대상, 방향)도 같이 남긴다. 이게 없으면 라벨일치를
+                # 나중에 다시 매길 때 홀드아웃을 따로 열어 id로 맞붙여야 한다
+                # (`cli/rescore.py`가 옛 실험에 대해 그렇게 한다).
+                "teacher_labels": row.get("labels"),
                 # 0이면 모델이 곧바로 끝냈다는 뜻이고, max_new_tokens와 같으면 끝이
                 # 잘렸다는 뜻이다. 0점의 원인이 이 둘 중 어느 쪽인지 여기서 갈린다.
                 "new_tokens": int(fresh.shape[0]),
@@ -164,6 +169,13 @@ def main() -> None:
     # positive 26 · negative 11이므로 무조건 negative를 내면 29.7%가 나온다.
     matched = sum(1 for r in graded if r["judgement"] == r.get("teacher_judgement"))
     is_collapsed = collapsed(said)
+    # `sentence` 조건은 라벨을 구조적으로 안 낸다. **출력만 보고 정하면 붕괴와
+    # 구별이 안 되므로** 실제로 돌아간 설정에서 읽는다(`cli/train.py`가 남긴다).
+    ran_config = out_dir.parent / "config.json"
+    target = (json.loads(ran_config.read_text(encoding="utf-8")).get("target")
+              if ran_config.exists() else None)
+    labels = label_agreement([(r.get("labels"), r.get("teacher_labels")) for r in graded],
+                             label_free=(target == "sentence"))
     summary = {
         "model": args.model, "model_revision": args.model_revision,
         "adapter": args.adapter, "data": args.data, "rules": not args.no_rules,
@@ -188,6 +200,14 @@ def main() -> None:
         # 안 쓰고 숫자만 남긴다 -- 결과를 보고 문턱을 세우면 비교가 끊긴다.
         "skew": skew(said),
         "teacher_agreement": round(matched / len(graded), 3),
+        # 판정 한 칸이 아니라 **그 안의 내용**이 교사와 같은가. 교사일치가 두 라운드
+        # 똑같이 91.9%인데 이 값은 19.2% -> 34.6%로 움직인 적이 있다. 형식만 보는
+        # 눈금으로는 안 보이던 자리다(`docs/2차_스윕_결과.md` 7절).
+        # **verdict에는 안 쓴다** -- 문턱을 건드리면 라운드끼리 비교가 끊긴다.
+        "label_agreement": labels["rate"],
+        "label_matched": labels["matched"],
+        "label_denominator": labels["denominator"],
+        "label_note": labels["note"],
         "judgements": {j: sum(1 for r in graded if r["judgement"] == j)
                        for j in {r["judgement"] for r in graded}},
         "elapsed_seconds": round(time.time() - started, 1),
@@ -201,6 +221,13 @@ def main() -> None:
     print(f"  {'평균':<6} {summary['AM_mean']:>6.1%}   최저 {summary['AM_min']:>6.1%}")
     print(f"\n  판정 분포 {summary['judgements']}"
           f"   교사와 일치 {summary['teacher_agreement']:.1%}")
+    if summary["label_agreement"] is None:
+        print(f"  라벨일치 해당 없음 ({summary['label_note']})"
+              "   -- 0%가 아닙니다. 다른 조건과 나란히 놓지 마십시오")
+    else:
+        print(f"  라벨일치 {summary['label_agreement']:.1%}"
+              f" ({summary['label_matched']}/{summary['label_denominator']})"
+              "   교사가 라벨을 단 건만 셉니다")
     if is_collapsed:
         print(f"  ! 붕괴 -- {len(graded)}건 전부 '{said[0]}'입니다. AM 점수는 믿을 수 없습니다.")
         print("    labels가 비면 AM2·AM3이 검사할 것이 없어 자동 만점이 됩니다.")

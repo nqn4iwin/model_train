@@ -20,7 +20,11 @@ mkdir -p "$LOCAL"
 
 # --include 를 --exclude 보다 먼저 쓴다. rsync는 위에서부터 처음 맞는 규칙을 따르므로,
 # 가져올 것을 먼저 적고 맨 아래에서 나머지를 통째로 막는다.
-rsync -avz --prune-empty-dirs \
+# --update: **받는 쪽이 더 새 파일이면 건너뛴다.** 이게 없으면 로컬에서 만든 것이
+# 서버의 옛 판으로 덮인다 -- 2026-08-18에 `runs/sweep.json`이 그럴 뻔했다. 로컬 것은
+# `cli.rescore --write`로 두 라운드를 합쳐 라벨일치까지 넣은 140줄인데, 서버 것은
+# 2차만 담긴 66줄이라 그대로 덮였으면 그날 작업이 통째로 날아간다.
+rsync -avz --update --prune-empty-dirs \
   --include='*/' \
   --include='sweep.md' \
   --include='sweep.json' \
