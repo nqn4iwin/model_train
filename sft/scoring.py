@@ -66,6 +66,58 @@ def label_pairs(labels) -> list[tuple[str, str]] | None:
     return pairs
 
 
+def label_match(model_labels, teacher_labels) -> bool | None:
+    """모델이 읽은 `(대상, 방향)` 집합이 교사와 같은가. **교사가 라벨을 안 달았으면 None.**
+
+    None은 "틀렸다"가 아니라 **"이 건은 분모에서 뺀다"**는 뜻이다. negative 건은 교사도
+    모델도 `labels`가 비어 자동으로 일치가 되는데, 그것까지 세면 negative가 많을수록
+    점수가 올라간다 -- `labels`가 비면 AM2·AM3이 자동 만점이 되는 것과 **똑같은 함정**이다.
+    실측으로 `delora`가 전 건 기준 40.5%, 교사가 라벨을 단 건 기준 19.2%였다.
+
+    **순서는 뜻이 없으므로 집합으로 본다.** 같은 라벨을 순서만 바꿔 낸 것을 틀렸다고 하면
+    안 된다. `근거`는 자유 문장이라 비교에 안 쓴다 -- 어휘가 고정된 두 칸만 본다.
+    """
+    theirs = label_pairs(teacher_labels) or []
+    if not theirs:
+        return None
+    return set(label_pairs(model_labels) or []) == set(theirs)
+
+
+def label_agreement(pairs: list[tuple], label_free: bool = False) -> dict:
+    """`(모델 labels, 교사 labels)` 짝 목록에서 라벨일치를 센다.
+
+    **`label_free`는 설정에서 와야 한다**(`target == "sentence"`). 출력만 보고 정하면
+    안 된다 -- "구조적으로 라벨을 안 내는 조건"과 "붕괴해서 라벨이 안 나온 것"이
+    출력 위에서 똑같이 보이기 때문이다. `beft`는 `target=full`인데 홀드아웃 37건에
+    전부 negative를 내 라벨이 한 건도 없었다. **그 자리는 해당 없음이 아니라 0%다** --
+    해당 없음으로 적으면 붕괴가 표에서 숨는다.
+
+    `rate`가 None이 되는 경우가 둘이고 뜻이 정반대라 `note`로 가른다.
+
+    - `라벨 없는 조건` -- `sentence` 조건이다. **0%가 아니라 해당 없음이다.** 실력이
+      아니라 구조이므로, 0%로 적으면 이 조건이 통째로 0점으로 깔린다. AM8s가
+      `sentence`에서 자동 탈락을 만드는 것과 같은 자리다(`docs/TODO.md`).
+    - `교사 라벨 없음` -- 교사가 어느 건에도 라벨을 안 달았다. 분모가 0이다.
+
+    **이 값은 `verdict`에 안 쓴다.** 문턱(평균 60% · 최저 30%)을 건드리면 라운드끼리
+    비교가 끊긴다. `쏠림` 열을 세울 때와 같이 **열만 늘리고 판정은 사람이 읽는다.**
+
+    **그리고 낮은 라벨일치가 곧 못 배웠다는 뜻은 아니다.** 이 과제의 산출물은
+    `direct_impact` 문장이고, **라벨이 달라도 그 문장은 얼추 같은 경우가 흔하다.**
+    라벨은 그 문장에 이르는 중간 표시라 어느 칸으로 갈랐는지가 갈릴 뿐이다.
+    품질 점수가 아니라 눈금으로 읽는다.
+    """
+    scored = [(m, t) for m, t in pairs if label_pairs(t)]
+    if label_free:
+        return {"rate": None, "matched": 0, "denominator": len(scored),
+                "note": "라벨 없는 조건"}
+    if not scored:
+        return {"rate": None, "matched": 0, "denominator": 0, "note": "교사 라벨 없음"}
+    matched = sum(1 for m, t in scored if label_match(m, t))
+    return {"rate": round(matched / len(scored), 3), "matched": matched,
+            "denominator": len(scored), "note": None}
+
+
 def impact_subjects(impacts) -> list[str]:
     """impacts 배열에서 주체 문자열만 꺼낸다. 모양이 어긋나면 빈 목록."""
     if not isinstance(impacts, list):
