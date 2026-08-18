@@ -23,7 +23,21 @@ from collections import Counter
 # 평가용으로 통째로 빼두는 계열. 학습에 쓴 것으로 채점하면 점수가 부풀려진다. 해양수산
 # 운영규정을 고른 이유는 37건뿐이라 학습 손해가 작으면서, 처리방침과 문체·형식이 전혀
 # 달라 "처음 보는 문서에서도 되는가"를 실제로 재기 때문이다.
-HOLDOUT_SERIES = "mof_rd_regulation_pair"
+#
+# **여럿이다.** 2026-08-18에 `data_collect`가 산업기술혁신사업 공통 운영요령을 새로
+# 잡았다(159블록 · 141묶음). 그쪽은 **처음부터 채점용으로 받아 한 번도 씨앗이 된 적이
+# 없고**, 그쪽 `documents.py`의 `HOLDOUT_SERIES`가 앞에서 막는다 -- mof 때처럼 뒤에서
+# 걷어낼 일이 없다.
+#
+# **해석이 아직 안 붙어 데이터는 나중에 온다.** 필터를 미리 넣어도 안전하다 -- 지금
+# 파일에 이 계열이 한 건도 없으므로 갈리는 결과가 하나도 안 바뀐다(확인했다).
+#
+# **얼려둔 mof 37건은 그대로 둔다.** 모든 라운드가 그 위에서 채점돼 라운드 비교를
+# 지탱한다. 새 계열이 붙은 뒤 37건과 합본을 **따로 보고할지**는 아직 안 정했다.
+HOLDOUT_SERIES = frozenset({
+    "mof_rd_regulation_pair",
+    "motie_industrial_tech_guideline_pair",
+})
 
 # 프롬프트를 깎을 때 쓴 11건. 학습에 들어가면 그 프롬프트로 잰 값이 무의미해진다.
 # `evalset.json`은 `data_collect`에 있고 이 저장소에는 없으므로 걸러낼 `before_id`만
@@ -89,5 +103,5 @@ def split(records: list[dict]) -> tuple[list[dict], list[dict], Counter]:
         # `slim`에는 접두가 붙은 원래 값을 그대로 남긴다. 어느 것이 합성분인지는
         # 나중에 계열별로 세어 볼 때 필요한 정보다.
         series = record["series"].removeprefix("synth:")
-        (holdout if series == HOLDOUT_SERIES else train).append(slim)
+        (holdout if series in HOLDOUT_SERIES else train).append(slim)
     return train, holdout, dropped

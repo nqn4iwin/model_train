@@ -50,7 +50,7 @@ def main() -> None:
         "source": source.name, "source_run": source.parent.name,
         "source_records": len(records),
         "holdout_frozen": args.train_only,
-        "holdout_series": HOLDOUT_SERIES,
+        "holdout_series": sorted(HOLDOUT_SERIES),
         "train": len(train), "holdout": len(holdout),
         "train_judgements": dict(Counter(r["judgement"] for r in train)),
         "train_series": dict(Counter(r["series"] for r in train)),
@@ -66,7 +66,7 @@ def main() -> None:
     print(f"\n  학습    {len(train):>4}건  {meta['train_judgements']}")
     for name, count in Counter(r["series"] for r in train).most_common():
         print(f"            {name:<34}{count:>4}건")
-    print(f"  홀드아웃 {len(holdout):>4}건  {meta['holdout_judgements']}  ({HOLDOUT_SERIES})")
+    print(f"  홀드아웃 {len(holdout):>4}건  {meta['holdout_judgements']}  ({' · '.join(sorted(HOLDOUT_SERIES))})")
     print(f"\n저장: {out_dir}")
 
 
