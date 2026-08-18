@@ -38,6 +38,7 @@ import argparse
 import hashlib
 import html
 import json
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from cli.readout import diff_html, label_set, read_jsonl
@@ -86,10 +87,12 @@ def make_item(rid: str, teacher: dict, first: tuple[str, dict], second: tuple[st
     }
 
 
-def build_teacher(runs: list[Path], holdout: Path, n: int) -> tuple[list[dict], dict]:
+def build_teacher(runs: list[Path], holdout: Path, n: int,
+                  cap: int) -> tuple[list[dict], dict]:
     """Q1 -- 모델 문장과 교사 문장을 맞붙인다. **라벨 일치 여부로 반씩 뽑는다.**"""
     T = read_jsonl(holdout)
     pool: dict[str, list[dict]] = {"같음": [], "다름": []}
+    seen: dict[tuple, set] = defaultdict(set)
     for run in runs:
         R = read_jsonl(run / "eval" / "records.jsonl")
         for rid in T:
@@ -99,6 +102,11 @@ def build_teacher(runs: list[Path], holdout: Path, n: int) -> tuple[list[dict], 
             if not sentence(T[rid]) or not sentence(R[rid]):
                 continue
             same = label_set(R[rid].get("labels")) == label_set(T[rid].get("labels"))
+            # **글자까지 같은 문장은 한 장만.** 실측으로 B0113 은 다섯 실험이 똑같은
+            # 문장을 내서 같은 카드가 다섯 장 들어갔다. 그러면 한 건이 다섯 표가 된다.
+            if sentence(R[rid]) in seen[(rid, same)]:
+                continue
+            seen[(rid, same)].add(sentence(R[rid]))
             pool["같음" if same else "다름"].append(
                 {"rid": rid, "teacher": T[rid], "first": (run.name, R[rid]),
                  "second": ("교사", T[rid]),
@@ -106,10 +114,26 @@ def build_teacher(runs: list[Path], holdout: Path, n: int) -> tuple[list[dict], 
 
     # 같은 조문이 실험마다 나오므로 그대로 쓰면 한 조문을 여러 번 읽는다. 무리마다
     # 조문이 고루 퍼지도록 섞은 뒤 앞에서 잘라 낸다.
+    # **조문 하나가 판을 지배하지 않게 상한을 둔다.** 홀드아웃 37건 중 문장이 있는
+    # 것이 26건뿐이라, 실험을 여덟 개 써도 조문은 26개다. 상한이 없으면 한 조문이
+    # 일곱 번까지 나오고, 그 조문이 어려우면 일곱 건이 통째로 같은 쪽으로 간다 --
+    # **관측이 독립이 아니어서 "80건 중 몇 건"이 실제보다 확실해 보인다.**
     rows = []
     for group in ("같음", "다름"):
         pool[group].sort(key=lambda r: digest(r["rid"], r["first"][0], group))
-        rows += pool[group][: n // 2]
+        taken: Counter = Counter()
+        chosen = []
+        for row in pool[group]:
+            if taken[row["rid"]] >= cap:
+                continue
+            taken[row["rid"]] += 1
+            chosen.append(row)
+        rows += chosen[: n // 2]
+    # 무리 둘의 크기를 맞춘다. 한쪽이 모자라면 많은 쪽을 그만큼만 쓴다.
+    half = min(sum(1 for r in rows if r["extra"]["labelSame"]),
+               sum(1 for r in rows if not r["extra"]["labelSame"]))
+    rows = ([r for r in rows if r["extra"]["labelSame"]][:half]
+            + [r for r in rows if not r["extra"]["labelSame"]][:half])
     balance(rows)
     items = [make_item(r["rid"], r["teacher"], r["first"], r["second"], r["extra"], r["flip"])
              for r in rows]
@@ -118,10 +142,12 @@ def build_teacher(runs: list[Path], holdout: Path, n: int) -> tuple[list[dict], 
     for i, it in enumerate(items):
         it["n"] = i
     return items, {"라벨같음 후보": len(pool["같음"]), "라벨다름 후보": len(pool["다름"]),
-                   "뽑은 것": len(items)}
+                   "뽑은 것": len(items),
+                   "서로 다른 조문": len({it["id"] for it in items})}
 
 
-def build_rounds(pairs: list[tuple[Path, Path]], holdout: Path) -> tuple[list[dict], dict]:
+def build_rounds(pairs: list[tuple[Path, Path]], holdout: Path,
+                 cap: int) -> tuple[list[dict], dict]:
     """Q2 -- 같은 조문에 1차 모델과 2차 모델이 낸 문장을 맞붙인다."""
     T = read_jsonl(holdout)
     picked = []
@@ -138,13 +164,25 @@ def build_rounds(pairs: list[tuple[Path, Path]], holdout: Path) -> tuple[list[di
             picked.append({"rid": rid, "teacher": T[rid],
                            "first": (a_dir.name, A[rid]), "second": (b_dir.name, B[rid]),
                            "extra": {"pair": f"{a_dir.name} vs {b_dir.name}"}})
+    # Q1 과 같은 이유로 조문당 상한을 둔다. seed 셋을 넣으면 같은 조문에 거의 같은
+    # 문장이 세 번 나온다.
+    picked.sort(key=lambda r: digest(r["rid"], r["first"][0]))
+    taken: Counter = Counter()
+    capped = []
+    for row in picked:
+        if taken[row["rid"]] >= cap:
+            continue
+        taken[row["rid"]] += 1
+        capped.append(row)
+    picked = capped
     balance(picked)
     items = [make_item(r["rid"], r["teacher"], r["first"], r["second"], r["extra"], r["flip"])
              for r in picked]
     items.sort(key=lambda it: digest("order", it["id"], it["key"]["pair"]))
     for i, it in enumerate(items):
         it["n"] = i
-    return items, {"짝": len(pairs), "뽑은 것": len(items)}
+    return items, {"짝": len(pairs), "뽑은 것": len(items),
+                   "서로 다른 조문": len({it["id"] for it in items})}
 
 
 PAGES = {
@@ -263,14 +301,24 @@ def page(mode: str, items: list[dict], meta: str) -> str:
 </main>
 <script>
 const DATA = {blob};
-const KEY = "compare-" + DATA.mode + "-" + DATA.items.length;
+const KEY = "compare-" + DATA.mode;
 const LABEL = {{"1": "같음", "2": "A", "3": "B", "4": "둘다틀림"}};
 const TEXT = {{"1": "둘이 같은 뜻", "2": "A가 낫다", "3": "B가 낫다", "4": "둘 다 틀렸다"}};
 // 왜 그렇게 봤는지. 다음 판에서 무엇을 고쳐야 하는지는 이 분포에서 나온다.
 const WHY = ["", "한쪽이 사실을 지어냄", "한쪽이 방향을 반대로 읽음", "한쪽이 덜 구체적",
              "한쪽만 주체를 빠뜨림", "뜻은 같고 말만 다름", "비문", "기타"];
 
-let marks = JSON.parse(localStorage.getItem(KEY) || "{{}}");
+// 옛 판본의 점수를 이어받는다. 열쇠에 건수가 들어 있으면 판을 고칠 때마다 끊긴다.
+// 점수의 열쇠는 `조문|출처`라 건수가 달라져도 살아남은 카드에는 그대로 붙는다.
+let marks = JSON.parse(localStorage.getItem(KEY) || "null");
+if (!marks) {{
+  marks = {{}};
+  for (let i = 0; i < localStorage.length; i++) {{
+    const k = localStorage.key(i);
+    if (k && k.startsWith(KEY) && !k.endsWith("-open"))
+      Object.assign(marks, JSON.parse(localStorage.getItem(k) || "{{}}"));
+  }}
+}}
 let cur = 0, mode = "tsv";
 
 function esc(s){{
@@ -412,6 +460,9 @@ def main() -> None:
     ap.add_argument("--pair", nargs="+", default=[],
                     help="rounds 모드: '1차경로:2차경로' 꼴로 여럿")
     ap.add_argument("--n", type=int, default=60, help="teacher 모드에서 뽑을 건수 (반씩 나눈다)")
+    ap.add_argument("--cap", type=int, default=2,
+                    help="조문 하나가 몇 번까지 나올 수 있나. 홀드아웃에 문장이 있는 조문이 "
+                         "26개뿐이라, 상한이 없으면 한 조문이 판을 지배한다")
     ap.add_argument("--data", default=HOLDOUT, help="교사 정답이 든 홀드아웃")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
@@ -424,7 +475,7 @@ def main() -> None:
         if not args.run:
             ap.error("teacher 모드에는 --run 이 필요하다")
         items, stats = build_teacher([resolve(r) for r in args.run],
-                                     resolve(args.data), args.n)
+                                     resolve(args.data), args.n, args.cap)
         meta = f"실험 {len(args.run)}개에서 {len(items)}건"
     else:
         if not args.pair:
@@ -435,7 +486,7 @@ def main() -> None:
                 ap.error(f"--pair 는 '1차경로:2차경로' 꼴이어야 한다: {spec}")
             a, b = spec.split(":", 1)
             pairs.append((resolve(a), resolve(b)))
-        items, stats = build_rounds(pairs, resolve(args.data))
+        items, stats = build_rounds(pairs, resolve(args.data), args.cap)
         meta = f"짝 {len(pairs)}개에서 {len(items)}건"
 
     out = args.out or (ROOT / "runs" / f"채점_{args.mode}.html")
@@ -443,6 +494,9 @@ def main() -> None:
 
     for k, v in stats.items():
         print(f"  {k:<12} {v}")
+    print(f"\n  ! 결론은 조문 단위로 읽으십시오. 홀드아웃에 문장이 있는 조문이 26개뿐이라,")
+    print("    건수를 늘려도 서로 다른 조문은 안 늘어납니다. 같은 조문에서 나온 건들은")
+    print("    서로 독립이 아니므로 '몇 건 중 몇 건'이 실제보다 확실해 보입니다.")
     print(f"\n저장: {out}")
     print("  자리(A·B)는 id 로 정해지므로 다시 만들어도 같습니다 -- 채점이 딴 문장에 안 붙습니다.")
 
