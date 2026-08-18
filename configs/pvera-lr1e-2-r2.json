@@ -1,0 +1,19 @@
+{
+  "extends": "_base.json",
+  "name": "pvera-lr1e-2-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "2차 데이터(1,655건) 위에서 학습률만 1e-2로 올린다. pvera-r2 와 learning_rate 한 칸만 다르다. 근거는 vera-lr1e-2 -- 1차 데이터에서 학습률만 올리자 AM1이 10.8%에서 91.9%로 뛰었다(2026-08-18). 형식은 배웠는데 1차 데이터라 전부 negative로 붕괴했으므로, 함정이 약한 2차 데이터에서 다시 본다. 1e-2는 vera 한 건에서 통한 값을 그대로 옮긴 것이고 이 방식에 맞춘 값이 아니다 -- 안 되면 학습률이 아직 안 맞는 것일 수 있다",
+  "learning_rate": 0.01,
+  "peft": {
+    "peft_type": "PVERA",
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}

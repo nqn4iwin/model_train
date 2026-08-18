@@ -1,0 +1,6 @@
+configs/fourierft-lr1e-2-r2.json
+configs/c3a-lr1e-2-r2.json
+configs/adalora-lr1e-2-r2.json
+configs/pvera-lr1e-2-r2.json
+configs/unilora-lr1e-2-r2.json
+configs/vera-lr1e-2-r2.json
