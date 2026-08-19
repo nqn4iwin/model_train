@@ -1,0 +1,21 @@
+{
+  "extends": "_base.json",
+  "name": "delora-sentence-s44-r2",
+  "note": "2라운드 DeLoRA x sentence, seed 44. delora-sentence-r2 와 seed 한 칸만 다르다. **축 1(full 대 sentence)의 보류를 푸는 것이 목적이다** -- full 쪽은 seed 42·43·44가 91.9 · 81.1 · 91.9%로 다 있는데 sentence 쪽은 42(89.2%) 한 알뿐이라, 두 조건의 1건 차이가 노이즈인지 판단할 근거가 없다. seed 흔들림이 10.8%p인 판에서 한 알로는 못 가른다(2차에서 같은 실수로 판단이 뒤집혔다). **채점 주의: sentence 조건은 labels를 안 내므로 라벨일치가 구조적으로 해당 없음이고, AM8s가 (37-positive)/37이라 정답대로 맞힐수록 자동 탈락에 가까워진다. docs/TODO.md의 미결 항목 둘이 이 설정에 걸린다**",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "target": "sentence",
+  "seed": 44,
+  "peft": {
+    "peft_type": "DELORA",
+    "r": 32,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}

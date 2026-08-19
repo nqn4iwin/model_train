@@ -1,0 +1,19 @@
+{
+  "extends": "_base.json",
+  "name": "pvera-lr1e-3-r2",
+  "data": "data/20260814__annotate__v2.2-synth/train.jsonl",
+  "note": "2차 데이터 위에서 학습률만 1e-3으로 준다. pvera-r2(2e-4) · pvera-lr1e-2-r2(1e-2)와 learning_rate 한 칸만 다르다. c3a-lr1e-3-r2와 같은 사이 찍기인데 **붕괴 방향이 반대라 같이 본다** -- 1e-2에서 c3a는 전부 positive(34건)로, pvera는 전부 negative(26건)로 무너졌다. 같은 데이터·같은 학습률에서 방향이 갈렸으므로 쏠림이 데이터만의 성질은 아니다. **볼 것은 AM1이 아니라 판정 분포다**",
+  "learning_rate": 0.001,
+  "peft": {
+    "peft_type": "PVERA",
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}

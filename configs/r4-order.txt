@@ -1,0 +1,4 @@
+configs/c3a-lr1e-3-r2.json
+configs/pvera-lr1e-3-r2.json
+configs/delora-sentence-s43-r2.json
+configs/delora-sentence-s44-r2.json
