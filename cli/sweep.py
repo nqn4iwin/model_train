@@ -188,6 +188,7 @@ def write_table(results: dict) -> list[str]:
 
 
 def main() -> None:
+    global HOLDOUT          # worker 가 모듈 전역으로 읽으므로 --holdout 을 여기에 꽂는다
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--configs", nargs="*", type=Path, default=[])
     ap.add_argument("--all", action="store_true", help="configs/ 전체 (_base 제외)")
@@ -198,7 +199,17 @@ def main() -> None:
                     help="한 장에 동시에 물릴 실험 수. 10B를 bf16으로 올리면 21GB고 "
                          "LoRA는 원본을 얼려두므로 80GB 한 장에 둘이 들어간다. 벽시계 "
                          "시간이 절반이 되고 GPU가 노는 시간도 준다. OOM이 나면 1로 준다")
+    ap.add_argument("--holdout", default=HOLDOUT,
+                    help="채점에 쓸 홀드아웃. 기본은 얼려둔 mof 37건이고, 그 위에서 "
+                         "지난 라운드들이 전부 매겨졌다. **바꾸면 이전 표와 비교가 "
+                         "끊기므로** 라운드를 새로 여는 자리에서만 준다. "
+                         "2차run은 135건(mof 37 + motie 98)을 쓴다")
     args = ap.parse_args()
+
+    # 채점 경로는 worker가 모듈 전역으로 읽으므로 여기서 바꾼다.
+    if args.holdout != HOLDOUT:
+        print(f"홀드아웃  {args.holdout}  (기본값 아님 -- 이전 표와 비교가 끊긴다)\n")
+        HOLDOUT = args.holdout
 
     paths = list(args.configs)
     if args.all or not paths:
