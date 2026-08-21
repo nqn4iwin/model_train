@@ -1,0 +1,59 @@
+{
+  "source": "all_A.jsonl",
+  "source_run": "scratchpad",
+  "source_records": 3313,
+  "holdout_frozen": false,
+  "holdout_series": [
+    "mof_rd_regulation_pair",
+    "motie_industrial_tech_guideline_pair"
+  ],
+  "train": 3178,
+  "holdout": 135,
+  "train_judgements": {
+    "negative": 312,
+    "positive": 2866
+  },
+  "train_series": {
+    "mpm_privacy_policy": 358,
+    "mss_rd_guideline_pair": 16,
+    "mss_tips_support_notice_pair": 2,
+    "regional_industry_guideline_pair": 149,
+    "tips_operating_guideline_pair": 37,
+    "me_environment_tech_guideline_pair": 14,
+    "motie_global_talent_notice_pair": 16,
+    "msit_science_rd_guideline_pair": 13,
+    "mafra_rd_guideline_pair": 11,
+    "kisa_public_blockchain_notice_pair": 4,
+    "molit_rd_guideline_pair": 12,
+    "mohw_health_rd_guideline_pair": 2,
+    "mss_innovation_voucher_notice_pair": 5,
+    "kisa_blockchain_university_notice_pair": 7,
+    "mss_modoo_startup_notice_pair": 11,
+    "ftc_gift_certificate_terms_2024_2025_pair": 2,
+    "motie_foreign_students_notice_pair": 3,
+    "moe_school_enterprise_notice_pair": 5,
+    "ftc_deposit_terms_pair": 2,
+    "synth:ftc_game_terms": 567,
+    "synth:ftc_gift_certificate_terms": 91,
+    "synth:mois_opendata_eval_manual": 39,
+    "synth:mss_rd_guideline_pair": 329,
+    "synth:regional_industry_guideline_pair": 386,
+    "synth:tips_operating_guideline_pair": 330,
+    "synth:ftc_deposit_terms_pair": 60,
+    "synth:ftc_gift_certificate_terms_2024_2025_pair": 3,
+    "synth:kisa_public_blockchain_notice_pair": 1,
+    "synth:mafra_rd_guideline_pair": 308,
+    "synth:me_environment_tech_guideline_pair": 220,
+    "synth:mohw_health_rd_guideline_pair": 36,
+    "synth:molit_rd_guideline_pair": 91,
+    "synth:motie_global_talent_notice_pair": 2,
+    "synth:msit_science_rd_guideline_pair": 43,
+    "synth:mss_innovation_voucher_notice_pair": 2,
+    "synth:mss_modoo_startup_notice_pair": 1
+  },
+  "holdout_judgements": {
+    "negative": 22,
+    "positive": 113
+  },
+  "dropped": {}
+}
