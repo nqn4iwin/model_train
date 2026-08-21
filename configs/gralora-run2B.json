@@ -1,0 +1,18 @@
+{
+  "extends": "_base.json",
+  "name": "gralora-run2B",
+  "note": "2차run 조건 B · GraLoRA · seed 42. **조건 B와 A는 3,178건 중 183건만 다르다** -- 단일(사슬 중간본)이라 복합 비율이 5.0%다. 그 외 학습셋은 완전히 같다. negative는 양쪽 다 9.8%인데 **0%와 16.0% 사이는 통째로 미측정 구간이라 이 라운드가 그 첫 실측이다** -- 45.9%에서는 전부 negative로, 0%에서는 전부 positive로 무너진 전례가 있으므로 1에폭 체크포인트부터 판정 분포를 본다. 홀드아웃은 135건(mof 37 + motie 98)이고 **motie 98건은 처음 채점되는 문서다.** 1차run 교사일치 48.6%로 `됨` 중 아래쪽이다. prerun 붕괴에서 살아났다. **경계선이 어디인지를 재는 눈금으로 데려간다**",
+  "data": "data/20260821__annotate__v2.2-run2B/train.jsonl",
+  "peft": {
+    "peft_type": "GRALORA",
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}
