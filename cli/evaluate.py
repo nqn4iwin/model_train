@@ -30,8 +30,10 @@ import os
 import time
 from pathlib import Path
 
-from sft.formatting import build_prompt
-from sft.scoring import (KEYS, collapsed, label_agreement, restatement_ratio,
+from sft.formatting import build_fewshot_prefix, build_prompt, select_fewshot
+from sft.models import load_causal_lm, load_tokenizer
+from sft.scoring import (KEYS, collapsed, label_agreement, layered_agreement,
+                        restatement_ratio,
                          score_blind, skew, verdict)
 
 MODEL = "KORMo-Team/KORMo-10B-base"
@@ -75,6 +77,12 @@ def main() -> None:
                     help="프롬프트 끝에 붙여 답을 시작시키는 실마리. base 모델은 규칙서를 "
                          "그냥 문서로 읽고 바로 끝내버린다. 채점 전에 출력 앞에 다시 "
                          "이어 붙이므로 JSON은 온전한 채로 매겨진다. 빈 문자열이면 안 붙인다")
+    ap.add_argument("--shots", type=int, default=0,
+                    help="few-shot 예시 개수. 0이면 지금과 완전히 같은 zero-shot (기본값)")
+    ap.add_argument("--shots-source",
+                    default="data/20260821__annotate__v2.2-run2A/train.jsonl",
+                    help="few-shot 예시를 고르는 파일. 서로 다른 모델을 비교할 때 같은 "
+                         "예시를 쓰도록 기본값을 고정해 둔다")
     args = ap.parse_args()
 
     # 이 서버는 8장을 여럿이 나눠 쓴다. CUDA_VISIBLE_DEVICES를 안 주면 0번을 잡는데,
@@ -85,23 +93,28 @@ def main() -> None:
             "  CUDA_VISIBLE_DEVICES=4 python -m cli.evaluate ...")
 
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
 
     rows = [json.loads(line) for line in
             Path(args.data).read_text(encoding="utf-8").splitlines() if line.strip()]
     if args.limit:
         rows = rows[:args.limit]
 
-    # KORMo는 자체 모델 클래스(KORMoForCausalLM)를 쓰는 것으로 보인다. 표준 아키텍처가
-    # 아니면 trust_remote_code 없이는 로드 자체가 안 된다. 여기서 터지면 그것이 곧
-    # PEFT 방식들이 이 모델에 안 붙는 이유가 되므로, 실패도 기록할 값이다.
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.model, revision=args.model_revision, trust_remote_code=True)
+    shots: list[dict] = []
+    if args.shots:
+        shot_rows = [json.loads(line) for line in
+                     Path(args.shots_source).read_text(encoding="utf-8").splitlines()
+                     if line.strip()]
+        shots = select_fewshot(shot_rows, args.shots)
+    fewshot_prefix = build_fewshot_prefix(shots) if shots else ""
+
+    # KORMo는 자체 모델 클래스(KORMoForCausalLM)를 쓴다. Qwen은 architectures가 이미지·
+    # 영상까지 받는 멀티모달 통짜 클래스를 가리켜 다른 클래스가 필요하다. sft.models가
+    # 모델 이름을 보고 가른다 -- 여기서 터지면 그것도 기록할 값이다.
+    tokenizer = load_tokenizer(args.model, revision=args.model_revision)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(
-        args.model, revision=args.model_revision, trust_remote_code=True,
-        dtype=torch.bfloat16, device_map="cuda:0")
+    model = load_causal_lm(args.model, revision=args.model_revision,
+                           dtype=torch.bfloat16, device_map="cuda:0")
     if args.adapter:
         from peft import PeftModel
         model = PeftModel.from_pretrained(model, args.adapter)
@@ -115,7 +128,7 @@ def main() -> None:
     graded: list[dict] = []
     for turn in range(1, args.repeat + 1):
         for index, row in enumerate(rows, 1):
-            prompt = build_prompt(row, rules=not args.no_rules) + args.prefill
+            prompt = fewshot_prefix + build_prompt(row, rules=not args.no_rules) + args.prefill
             encoded = tokenizer(prompt, return_tensors="pt").to(model.device)
             with torch.no_grad():
                 generated = model.generate(
@@ -176,12 +189,19 @@ def main() -> None:
               if ran_config.exists() else None)
     labels = label_agreement([(r.get("labels"), r.get("teacher_labels")) for r in graded],
                              label_free=(target == "sentence"))
+    # 판정 -> 대상 -> 방향 -> 쌍 네 층. **파싱이 깨진 건은 원문에서 건져 센다.**
+    # 위 두 값(`teacher_agreement`·`label_agreement`)은 안 건드린 판이라 그대로 두고,
+    # 이건 옆에 따로 세운다 -- 값을 고치면 지난 표와 비교가 끊긴다.
+    layered = layered_agreement(graded, label_free=(target == "sentence"))
     summary = {
         "model": args.model, "model_revision": args.model_revision,
         "adapter": args.adapter, "data": args.data, "rules": not args.no_rules,
         "items": len(rows), "repeat": args.repeat, "calls": len(graded),
         "temperature": args.temperature, "max_new_tokens": args.max_new_tokens,
         "prefill": args.prefill,
+        "shots": args.shots,
+        "shots_source": args.shots_source if args.shots else None,
+        "shot_ids": [row["id"] for row in shots],
         "empty_outputs": sum(1 for r in graded if r["new_tokens"] == 0),
         # 상한에 닿았는데 첫 객체도 안 닫힌 것만 진짜 잘린 것이다. 닫혔는데 상한에
         # 닿은 것은 답 뒤에 딴소리가 붙은 것이라 상한을 늘려도 달라지지 않는다.
@@ -208,6 +228,7 @@ def main() -> None:
         "label_matched": labels["matched"],
         "label_denominator": labels["denominator"],
         "label_note": labels["note"],
+        **layered,
         "judgements": {j: sum(1 for r in graded if r["judgement"] == j)
                        for j in {r["judgement"] for r in graded}},
         "elapsed_seconds": round(time.time() - started, 1),

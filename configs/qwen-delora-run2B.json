@@ -1,0 +1,22 @@
+{
+  "extends": "_base-qwen.json",
+  "name": "qwen-delora-run2B",
+  "note": "6칸 비교의 '학습함 · Qwen' 칸, 조건 B(단일 중심, 복합 비율 5.0%) · DeLoRA · seed 42. `_base-qwen.json`을 물려받아 target_modules는 Qwen 혼성 주의 구조에 맞춘 확장 목록을 그대로 쓴다. KORMo 쪽 `delora-run2B.json`과 같은 데이터로 같은 조건을 맞춰, KORMo가 학습으로 얻는 변화와 Qwen(이미 한국어를 잘하는 큰 모델)이 같은 데이터로 학습해 얻는 변화를 나란히 비교하려는 것이다.",
+  "data": "data/20260821__annotate__v2.2-run2B/train.jsonl",
+  "peft": {
+    "peft_type": "DELORA",
+    "r": 32,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "in_proj_qkv",
+      "in_proj_z",
+      "out_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}

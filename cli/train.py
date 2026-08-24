@@ -21,90 +21,13 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
-import subprocess
 from pathlib import Path
 
 from sft.formatting import build_completion, build_prompt
-
-# 이 파일은 cli/ 안에 있고 configs·data·runs는 저장소 뿌리에 있으므로 한 단계 올라간다.
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def read_config(path: str | Path) -> dict:
-    """설정을 읽는다. `extends`가 있으면 그 파일 위에 이 파일을 덮어쓴다.
-
-    **비교 실험이 전부 "다른 건 똑같이 두고 하나만 바꾼다"라 상속이 필요하다.** 스무 개
-    설정에 학습률을 스무 번 적어두면, 한 곳을 고칠 때 열아홉 곳이 옛 값으로 남아
-    통제가 조용히 깨진다. 바뀌는 칸만 적으면 **파일이 곧 그 실험의 차이 목록**이 된다.
-
-    한 단계만 물려받는다. 상속의 상속은 무엇이 이겼는지 읽기 어려워진다.
-    """
-    path = Path(path)
-    config = json.loads(path.read_text(encoding="utf-8"))
-    parent = config.pop("extends", None)
-    if parent:
-        base = json.loads((path.parent / parent).read_text(encoding="utf-8"))
-        base.pop("extends", None)
-        # **output_dir은 절대 물려받지 않는다.** 물려받으면 열여덟 실험이 한 폴더를
-        # 가리켜 서로를 덮어쓴다. 에러가 안 나고 결과만 사라지는 종류의 고장이라
-        # 나중에 알아채기도 어렵다. 자식이 명시하지 않았으면 이름에서 새로 만든다.
-        base.pop("output_dir", None)
-        config = {**base, **config}
-    config.setdefault("output_dir", f"runs/{config['name']}")
-    missing = {"name", "model", "data", "peft"} - set(config)
-    if missing:
-        raise ValueError(f"{path}: 설정에 빠진 칸 {sorted(missing)}")
-    return config
-
-
-def git_revision() -> str | None:
-    result = subprocess.run(["git", "rev-parse", "HEAD"],
-                            capture_output=True, text=True, check=False)
-    return result.stdout.strip() or None
-
-
-def load_rows(config: dict) -> list[dict]:
-    """학습 레코드를 읽고 설정이 시키는 대로 거른다.
-
-    **거르기를 학습 시점에 하는 이유**는 데이터 파일을 한 벌로 얼려두기 위해서다.
-    negative를 빼는 조건과 안 빼는 조건이 같은 파일을 쓰면, 두 실험이 정말 같은
-    데이터에서 출발했는지가 파일 해시 하나로 확인된다.
-    """
-    rows = [json.loads(line) for line in
-            (ROOT / config["data"]).read_text(encoding="utf-8").splitlines() if line.strip()]
-
-    if config.get("negatives", "keep") == "drop":
-        rows = [r for r in rows if r["judgement"] != "negative"]
-
-    # 한 계열이 전체의 60%라 그대로 두면 그 문체만 배운다. 계열 안에서는 문서 전체에
-    # 퍼지도록 고른다 -- 앞에서 자르면 문서 앞머리의 표제부·날짜만 남는다.
-    limit = config.get("downsample")
-    if limit:
-        by_series: dict[str, list[dict]] = {}
-        for row in rows:
-            by_series.setdefault(row["series"], []).append(row)
-        rows = [group[(i * len(group)) // min(limit, len(group))]
-                for group in by_series.values()
-                for i in range(min(limit, len(group)))]
-    return rows
-
-
-def to_dataset(rows: list[dict], config: dict):
-    """prompt와 completion 두 칸짜리로 만든다.
-
-    TRL은 이 두 칸을 보면 **프롬프트 부분의 손실을 빼고 정답 부분만 학습한다.**
-    한 덩어리 텍스트로 주면 규칙서 3,300자까지 외우게 되는데, 그것은 우리가 가르치려는
-    것이 아니다.
-    """
-    from datasets import Dataset
-
-    return Dataset.from_list([
-        {"prompt": build_prompt(row, rules=config.get("rules", True)),
-         "completion": build_completion(row, config.get("target", "full"))}
-        for row in rows])
-
+from sft.models import is_qwen, load_causal_lm, load_tokenizer
+from sft.records import ruler_name
+from sft.training import ROOT, git_revision, load_rows, read_config, to_dataset
 
 def inspect(config: dict, rows: list[dict]) -> None:
     """안 돌리고 한 건이 실제로 어떻게 토큰이 되는지 보여준다.
@@ -113,11 +36,7 @@ def inspect(config: dict, rows: list[dict]) -> None:
     37건 전부 그랬다). 정답 끝에 종료 토큰이 안 붙으면 학습 후에도 안 멈추고, 그러면
     뒤에 붙은 딴소리 때문에 AM1이 영영 안 오른다. **돌리기 전에 눈으로 본다.**
     """
-    from transformers import AutoTokenizer
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        config["model"], revision=config.get("model_revision", "main"),
-        trust_remote_code=True)
+    tokenizer = load_tokenizer(config["model"], revision=config.get("model_revision", "main"))
     row = rows[0]
     prompt = build_prompt(row, rules=config.get("rules", True))
     completion = build_completion(row, config.get("target", "full"))
@@ -153,13 +72,29 @@ def inspect(config: dict, rows: list[dict]) -> None:
     # 그 아래 배치를 꺼내는 부분은 TRL 5.x에서 실패할 수 있는데, 위 로그가 이미
     # 물음에 답했으므로 실패해도 상관없다.
     try:
+        import torch
+        from peft import get_peft_config
         from trl import SFTConfig, SFTTrainer
+        # KORMo는 trust_remote_code가 있어야 로드된다. Qwen은 dtype 없이 불렀다가는
+        # 27B를 fp32로 CPU에 올리려다 죽는다 -- bf16을 명시한다.
+        model_arg = config["model"]
+        model_init_kwargs = {"trust_remote_code": True}
+        if is_qwen(config["model"]):
+            model_arg = _inspect_qwen(config)
+            model_init_kwargs = None
         trainer = SFTTrainer(
-            model=config["model"],
+            model=model_arg,
             args=SFTConfig(output_dir="/tmp/inspect", max_length=config.get("max_length", 4096),
-                           report_to=[], model_init_kwargs={"trust_remote_code": True}),
+                           report_to=[], model_init_kwargs=model_init_kwargs),
             train_dataset=to_dataset(rows[:2], config),
-            processing_class=tokenizer)
+            processing_class=tokenizer,
+            peft_config=get_peft_config({"task_type": "CAUSAL_LM", **config["peft"]}))
+        if is_qwen(config["model"]):
+            trainable = sum(parameter.numel() for parameter in trainer.model.parameters()
+                            if parameter.requires_grad)
+            if not trainable:
+                raise RuntimeError("Qwen LoRA에 학습되는 parameter가 없습니다.")
+            print(f"  LoRA 학습 parameter: {trainable:,}개")
         batch = trainer.train_dataset[0]
         ids, labels = batch["input_ids"], batch.get("labels", [])
         print(f"\n  TRL이 만든 배치: input_ids {len(ids)}개 · labels {len(labels)}개")
@@ -170,7 +105,42 @@ def inspect(config: dict, rows: list[dict]) -> None:
         print(f"    끝에 EOS({tokenizer.eos_token_id})가 있나: {ids[-1] == tokenizer.eos_token_id}")
     except Exception as error:
         print(f"\n  배치를 꺼내지는 못했습니다: {type(error).__name__}: {error}")
+        if is_qwen(config["model"]):
+            raise
         print("  위에 'Adding EOS to train dataset'이 찍혔으면 EOS는 붙은 것입니다.")
+
+
+def _inspect_qwen(config: dict):
+    """Qwen 전용 진단. 실제로 한 번 불러 세 가지를 확인한다.
+
+    이 저장소가 이미 겪은 위험 -- `target_modules`에 없는 이름의 층은 에러 없이
+    조용히 학습에서 빠진다 -- 를 학습을 실제로 돌리기 전에 걸러내려는 것이다. Qwen은
+    선형 주의(GatedDeltaNet) 층과 전체 주의 층의 Linear 이름이 서로 달라 이 위험이
+    KORMo보다 크다.
+    """
+    import torch
+    from torch import nn
+
+    print("\n  Qwen 진단 (실제로 한 번 불러 확인합니다) ...")
+    model = load_causal_lm(config["model"], revision=config.get("model_revision", "main"),
+                           dtype=torch.bfloat16)
+    class_name = type(model).__name__
+    ok = "" if class_name == "Qwen3_5ForCausalLM" else "  <- 텍스트 전용 클래스가 아닙니다. 로딩 경로를 확인하세요"
+    print(f"  불러온 클래스: {class_name}{ok}")
+
+    vision_like = [name for name, _ in model.named_children()
+                   if "vis" in name.lower() or "image" in name.lower()]
+    print(f"  vision 관련 서브모듈: {vision_like or '없음 (정상)'}")
+
+    target_modules = set(config["peft"].get("target_modules", []))
+    linear_leaf_names = {name.rsplit(".", 1)[-1] for name, module in model.named_modules()
+                         if isinstance(module, nn.Linear)}
+    matched = target_modules & linear_leaf_names
+    print(f"  target_modules 중 실제로 걸리는 이름: {sorted(matched)}"
+          f" ({len(matched)}/{len(target_modules)})")
+    if not matched:
+        print("  ! 하나도 안 걸립니다 -- 이 target_modules로는 LoRA가 통째로 안 붙습니다.")
+    return model
 
 
 def main() -> None:
@@ -194,7 +164,6 @@ def main() -> None:
 
     import torch
     from peft import get_peft_config
-    from transformers import AutoTokenizer
     from trl import SFTConfig, SFTTrainer
 
     output_dir = ROOT / config["output_dir"]
@@ -205,9 +174,7 @@ def main() -> None:
                     "rows": len(rows)}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8")
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        config["model"], revision=config.get("model_revision", "main"),
-        trust_remote_code=True)
+    tokenizer = load_tokenizer(config["model"], revision=config.get("model_revision", "main"))
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -234,8 +201,20 @@ def main() -> None:
             os.environ.setdefault("WANDB_PROJECT",
                                   config.get("wandb_project", "model_train"))
 
+    # KORMo는 문자열 그대로 TRL에 넘겨 안에서 불러오게 둔다(지금까지 그래 왔다).
+    # Qwen은 TRL의 문자열 기반 로딩이 architectures가 가리키는 멀티모달 클래스로
+    # 안 풀릴 위험이 있어 확인이 안 됐으므로, 직접 불러 객체를 넘긴다 -- 이미
+    # 실체화된 객체라 model_init_kwargs는 못 쓴다(TRL이 재로딩하지 않는다).
+    model_arg = config["model"]
+    model_init_kwargs = {"dtype": torch.bfloat16, "use_cache": False,
+                         "trust_remote_code": True}
+    if is_qwen(config["model"]):
+        model_arg = load_causal_lm(config["model"], revision=config.get("model_revision", "main"),
+                                   dtype=torch.bfloat16, use_cache=False)
+        model_init_kwargs = None
+
     trainer = SFTTrainer(
-        model=config["model"],
+        model=model_arg,
         args=SFTConfig(
             output_dir=str(output_dir),
             seed=config.get("seed", 42),
@@ -249,8 +228,7 @@ def main() -> None:
             save_total_limit=config.get("save_total_limit", 1),
             bf16=True,
             gradient_checkpointing=config.get("gradient_checkpointing", True),
-            model_init_kwargs={"dtype": torch.bfloat16, "use_cache": False,
-                               "trust_remote_code": True},
+            model_init_kwargs=model_init_kwargs,
             # 기록에 붙는 이름. 안 주면 output_dir(`runs/delora`)가 이름이 되어
             # W&B 목록에서 전부 `runs/`로 시작한다. 설정 이름이 곧 실험 이름이다.
             run_name=config["name"],
@@ -265,7 +243,13 @@ def main() -> None:
     print("채점:")
     print(f"  CUDA_VISIBLE_DEVICES=$GPU python -m cli.evaluate \\")
     print(f"      --data data/20260811__annotate__v2.2/holdout.jsonl \\")
-    print(f"      --adapter {config['output_dir']}/final --out {config['output_dir']}/eval")
+    # **채점 폴더 이름은 홀드아웃이 정한다**(`sft.records.ruler_name`) -- 37건이면
+    # `eval-mof`, 135건이면 `eval-mof-motie`다. 이 실험이 쓴 데이터 폴더 옆에 있는
+    # 홀드아웃이 그 실험의 자이므로 거기서 뽑는다. 없으면 자리표시자를 적는다.
+    beside = ROOT / Path(config["data"]).with_name("holdout.jsonl")
+    folder = ruler_name(beside) if beside.exists() else "<채점폴더>"
+    print(f"      --adapter {config['output_dir']}/final"
+          f" --out {config['output_dir']}/{folder}")
 
 
 if __name__ == "__main__":

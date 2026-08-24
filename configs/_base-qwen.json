@@ -1,0 +1,42 @@
+{
+  "name": "lora-qwen-full-rules",
+  "note": "Qwen용 기준 조건. `_base.json`을 손으로 복제한 독립 파일이다 -- read_config()가 상속을 한 단계만 허용해 `_base.json`을 물려받을 수 없다. `_base.json`의 배치·에폭·저장 전략을 고치면 여기도 손으로 맞춰야 한다. target_modules는 Qwen3.8-27B의 3:1 혼성 주의 구조(GatedDeltaNet 3 : 전체 주의 1) 때문에 KORMo와 다르다 -- 전체 주의 층은 q/k/v/o_proj를, 선형 주의 층은 in_proj_qkv/in_proj_z/out_proj를 쓴다. in_proj_a·in_proj_b(머리별 게이팅 스칼라)는 뺐다 -- LoRA로 적응시키는 게 도움이 되는지 아직 안 재봤다. 걸리는 개수는 `cli.train --config ... --inspect`의 Qwen 진단이 보여준다.",
+  "model": "Qwen/Qwen3.8-27B",
+  "model_revision": "main",
+  "data": "data/20260811__annotate__v2.2/train.jsonl",
+  "rules": true,
+  "target": "full",
+  "negatives": "keep",
+  "downsample": null,
+  "seed": 42,
+  "max_length": 4096,
+  "per_device_train_batch_size": 1,
+  "gradient_accumulation_steps": 8,
+  "learning_rate": 0.0002,
+  "num_train_epochs": 3,
+  "logging_steps": 5,
+  "save_strategy": "epoch",
+  "save_total_limit": 3,
+  "gradient_checkpointing": true,
+  "report_to": ["tensorboard", "wandb"],
+  "wandb_project": "model_train",
+  "peft": {
+    "peft_type": "LORA",
+    "r": 32,
+    "lora_alpha": 64,
+    "lora_dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "in_proj_qkv",
+      "in_proj_z",
+      "out_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "bias": "none"
+  }
+}

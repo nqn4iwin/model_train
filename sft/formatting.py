@@ -78,3 +78,56 @@ def build_completion(record: dict, target: str = "full") -> str:
         answer["impacts"] = record.get("impacts") or []
     answer["direct_impact"] = record.get("direct_impact") or ""
     return json.dumps(answer, ensure_ascii=False)
+
+
+# few-shot 예시 하나를 나타내는 짧은 블록. `template()`이 쓰는 규칙서(7KB)를 예시마다
+# 반복하면 몇 건만으로도 max_length(4096)를 넘는다. 규칙서는 실제 질의 앞에 한 번만
+# 붙이고(build_prompt), 여기서는 "이전판 -> 최신판 -> 정답 JSON"만 짧게 이어붙인다.
+FEWSHOT_EXAMPLE = Template("""[예시 $n]
+[이전판] $before_id
+$before
+
+[최신판] $after_id
+$after
+
+정답: $completion
+
+""")
+
+
+def select_fewshot(rows: list[dict], n: int) -> list[dict]:
+    """few-shot 예시 n건을 고른다.
+
+    파일 맨 앞만 그대로 자르면 한 계열이 이어져 처음 몇 줄이 전부 같은 판정으로
+    치우칠 수 있다(실제로 확인함). **첫 positive 1건 + 첫 negative 1건을 먼저 담고**,
+    그다음은 파일 순서대로 이어 담아 n개를 채운다.
+    """
+    if n <= 0:
+        return []
+    picked: list[dict] = []
+    picked_ids: set = set()
+    for judgement in ("positive", "negative"):
+        for row in rows:
+            if row["judgement"] == judgement and row["id"] not in picked_ids:
+                picked.append(row)
+                picked_ids.add(row["id"])
+                break
+        if len(picked) >= n:
+            return picked[:n]
+    for row in rows:
+        if len(picked) >= n:
+            break
+        if row["id"] in picked_ids:
+            continue
+        picked.append(row)
+        picked_ids.add(row["id"])
+    return picked[:n]
+
+
+def build_fewshot_prefix(examples: list[dict], target: str = "full") -> str:
+    return "".join(
+        FEWSHOT_EXAMPLE.substitute(
+            n=i, before_id=row["before_id"], before=row["before"],
+            after_id=row["after_id"], after=row["after"],
+            completion=build_completion(row, target))
+        for i, row in enumerate(examples, 1))

@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 
 from sft.records import ruler_name
-from cli.train import read_config
+from sft.training import read_config
 
 # cli/ 안에 있으므로 저장소 뿌리는 한 단계 위다.
 ROOT = Path(__file__).resolve().parents[1]
