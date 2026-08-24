@@ -18,7 +18,9 @@
 """
 from __future__ import annotations
 
+import json
 from collections import Counter
+from pathlib import Path
 
 # 평가용으로 통째로 빼두는 계열. 학습에 쓴 것으로 채점하면 점수가 부풀려진다. 해양수산
 # 운영규정을 고른 이유는 37건뿐이라 학습 손해가 작으면서, 처리방침과 문체·형식이 전혀
@@ -105,3 +107,57 @@ def split(records: list[dict]) -> tuple[list[dict], list[dict], Counter]:
         series = record["series"].removeprefix("synth:")
         (holdout if series in HOLDOUT_SERIES else train).append(slim)
     return train, holdout, dropped
+
+
+def ruler_name(holdout: Path | str) -> str:
+    """홀드아웃 파일을 보고 **채점 결과를 넣을 폴더 이름**을 짓는다.
+
+        data/20260811__annotate__v2.2/holdout.jsonl        -> eval-mof
+        data/20260821__annotate__v2.2-run2A/holdout.jsonl  -> eval-mof-motie
+
+    **자가 바뀌면 폴더가 갈린다.** 2026-08-24까지는 결과가 전부 `eval/`로 갔는데,
+    홀드아웃이 37건(mof)에서 135건(mof+motie)으로 늘면서 **같은 폴더 이름 아래
+    서로 다른 자로 잰 값이 섞였다.** 그 상태로 표를 지으면 기준선이 다른 줄들이
+    한 표에 앉는다 -- 37건에서는 "전부 positive"가 70.3%인데 135건에서는 83.7%다.
+
+    이름을 계열에서 뽑는 이유는 **문서가 더 붙으면 이름도 같이 자라게** 하기
+    위해서다. 크기(`eval135`)로 지으면 다음에 135건이 또 나올 때 부딪히고, 무엇으로
+    쟀는지도 안 보인다. 계열 이름의 첫 토막만 쓴다 --
+    `motie_industrial_tech_guideline_pair`는 길고 `motie`면 알아본다.
+
+    `HOLDOUT_SERIES`와는 **일부러 안 엮었다.** 저것은 "무엇을 홀드아웃으로 뺄까"이고
+    이것은 "이 파일이 실제로 무엇을 담고 있나"다. 계열을 더해놓고 데이터를 아직 안
+    받은 구간이 있으므로(2026-08-18 motie가 그랬다) 둘이 갈릴 때가 있다.
+    """
+    series = set()
+    for line in Path(holdout).read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            series.add(json.loads(line)["series"].removeprefix("synth:"))
+    return "eval-" + "-".join(sorted(name.split("_")[0] for name in series))
+
+
+def eval_dir_of(run: Path | str, prefer: str | None = None) -> Path:
+    """실험 폴더 안에서 **어느 채점 결과를 읽을지** 고른다.
+
+    2026-08-24 전에는 무조건 `<실험>/eval/`이었다. 자가 둘이 되면서 한 실험이
+    `eval-mof/`와 `eval-mof-motie/`를 **둘 다 가질 수 있게** 됐다 -- 같은 어댑터를
+    37건과 135건으로 각각 잰 것이다. 어느 쪽을 읽느냐로 숫자가 달라지므로
+    **하나뿐일 때만 알아서 고르고, 둘이면 물어본다.**
+
+    `prefer`는 `eval-mof-motie` 같은 폴더 이름이다. `ruler_name()`이 홀드아웃에서
+    같은 모양을 만들어 주므로 그 값을 그대로 넘기면 된다.
+    """
+    run = Path(run)
+    if prefer:
+        chosen = run / prefer
+        if not (chosen / "records.jsonl").exists():
+            raise SystemExit(f"{chosen} 에 records.jsonl 이 없습니다.")
+        return chosen
+    found = sorted(p for p in run.glob("eval-*") if (p / "records.jsonl").exists())
+    if not found:
+        raise SystemExit(f"{run} 안에 채점 결과가 없습니다. (eval-* 폴더를 찾습니다)")
+    if len(found) > 1:
+        names = " · ".join(p.name for p in found)
+        raise SystemExit(f"{run} 에 채점 결과가 여럿입니다: {names}\n"
+                         f"  --eval-dir 로 하나를 고르세요.")
+    return found[0]

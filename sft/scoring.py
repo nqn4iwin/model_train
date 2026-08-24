@@ -22,11 +22,28 @@ from __future__ import annotations
 
 import difflib
 import json
+import re
 
 # rubric.md AM2가 쓰는 어휘 목록. 이 밖의 말이 하나라도 나오면 0점이다.
 TARGETS = ["기한·시점", "수치·기준", "적용 범위", "수행 주체",
            "절차·요건", "제출물·기재사항", "명칭"]
 DIRECTIONS = ["늘었다", "줄었다", "다른 값", "새로 생겼다", "없어졌다"]
+
+# 라벨을 **어느 칸으로 볼지**. `label_match`가 이걸로 갈라 본다.
+#
+# 2026-08-24에 더했다. 그전에는 `(대상, 방향)` 쌍 하나뿐이라, 라벨일치가 낮을 때
+# **대상을 못 고른 것인지 방향을 못 고른 것인지 알 수 없었다.** 갈라 보니 2차run에서
+# 대상 42.4% · 방향 46.0%로 둘이 비슷하게 어려웠다 -- 한쪽이 범인일 거라는 짐작이
+# 틀렸다. 쌍은 31.1%인데, 두 값을 곱한 19.5%보다 높으므로 **대상을 맞히면 방향도
+# 맞히는 경향**이 있다.
+#
+# **`쌍`이 기본이고 그것이 기존 `라벨일치`와 같은 값이다.** 새 칸을 더해도 옛 표의
+# 숫자가 안 움직이도록 기본값을 바꾸지 않는다.
+PARTS = {
+    "쌍": lambda pair: pair,
+    "대상": lambda pair: pair[0],
+    "방향": lambda pair: pair[1],
+}
 
 # 채점 항목 이름. `s`는 self-consistency로, 정답키 대신 모델 자기 판정으로 분기한다는
 # 뜻이다. 평가 세트의 AM6·AM8과 잣대가 다르므로 나란히 놓지 않는다(rubric.md).
@@ -66,7 +83,7 @@ def label_pairs(labels) -> list[tuple[str, str]] | None:
     return pairs
 
 
-def label_match(model_labels, teacher_labels) -> bool | None:
+def label_match(model_labels, teacher_labels, part: str = "쌍") -> bool | None:
     """모델이 읽은 `(대상, 방향)` 집합이 교사와 같은가. **교사가 라벨을 안 달았으면 None.**
 
     None은 "틀렸다"가 아니라 **"이 건은 분모에서 뺀다"**는 뜻이다. negative 건은 교사도
@@ -80,10 +97,12 @@ def label_match(model_labels, teacher_labels) -> bool | None:
     theirs = label_pairs(teacher_labels) or []
     if not theirs:
         return None
-    return set(label_pairs(model_labels) or []) == set(theirs)
+    pick = PARTS[part]
+    return {pick(x) for x in label_pairs(model_labels) or []} == {pick(x) for x in theirs}
 
 
-def label_agreement(pairs: list[tuple], label_free: bool = False) -> dict:
+def label_agreement(pairs: list[tuple], label_free: bool = False,
+                    part: str = "쌍") -> dict:
     """`(모델 labels, 교사 labels)` 짝 목록에서 라벨일치를 센다.
 
     **`label_free`는 설정에서 와야 한다**(`target == "sentence"`). 출력만 보고 정하면
@@ -113,9 +132,132 @@ def label_agreement(pairs: list[tuple], label_free: bool = False) -> dict:
                 "note": "라벨 없는 조건"}
     if not scored:
         return {"rate": None, "matched": 0, "denominator": 0, "note": "교사 라벨 없음"}
-    matched = sum(1 for m, t in scored if label_match(m, t))
+    matched = sum(1 for m, t in scored if label_match(m, t, part))
     return {"rate": round(matched / len(scored), 3), "matched": matched,
             "denominator": len(scored), "note": None}
+
+
+# `"judgement": "positive"` 처럼 **판정 한 칸만** 뽑는다. 값에 따옴표가 없다고 보고
+# 첫 닫는 따옴표까지 읽는다 -- 판정은 어휘가 고정된 칸이라 안전하다.
+_JUDGEMENT = re.compile(r'"judgement"\s*:\s*"([^"]*)"')
+
+
+def salvage_judgement(raw: str) -> str:
+    """파싱이 깨진 출력에서 **판정 한 칸만** 건진다. 못 건지면 빈 문자열.
+
+    **AM 점수에는 절대 쓰지 않는다.** AM1은 "출력이 JSON 하나로 파싱된다"이고 그것은
+    실제로 실패했으므로 0점이 맞다. 이 함수가 고치는 것은 `교사일치`와 라벨 쪽이다 --
+    그쪽은 형식이 아니라 **내용을 재는 눈금**인데, 형식 실패가 그 눈금까지 부순다.
+
+    2026-08-24 2차run에서 드러났다. 파싱 실패 440건이 **전부** 판정을 멀쩡히 들고
+    있었고 그중 94%가 교사와 맞았다. 그런데 다섯 항목이 0점이 되면서 교사일치도 같이
+    0이 되어, **조건 A가 74.3%로 찍혔다 -- 전부-positive 기준선 83.7%보다 낮다.**
+    붕괴가 아닌데 붕괴 신호가 켜진 것이다. 건지면 91.9%가 된다.
+    """
+    found = _JUDGEMENT.search(raw or "")
+    return found.group(1).strip() if found else ""
+
+
+def salvage_labels(raw: str) -> list | None:
+    """파싱이 깨진 출력에서 **`labels` 배열만** 건진다. 못 건지면 None.
+
+    `None`은 "라벨이 비었다"가 아니라 **"이 건은 분모에서 뺀다"**는 뜻이다.
+    `label_match`가 교사 라벨이 없을 때 쓰는 뜻과 같다 -- 모델이 무엇이라 했는지
+    정말로 모르는 자리이므로, 빈 목록으로 두면 "전부 틀렸다"로 세어진다.
+
+    **대괄호를 셀 때 문자열 안은 안 센다.** `근거`가 자유 문장이라 `[`가 들어갈 수
+    있고, 그러면 짝이 어긋나 멀쩡한 배열을 못 건진다.
+
+    실측(2차run 440건): 배열이 JSON으로 읽히는 것 323건(73%), 닫혔는데 JSON이 아닌 것
+    70건, 안 닫힌 것 47건. **못 건진 117건은 분모에서 빠지므로 `label_denominator`가
+    그만큼 줄어 표에서 보인다.**
+    """
+    text = raw or ""
+    head = text.find('"labels"')
+    if head < 0:
+        return None
+    start = text.find("[", head)
+    if start < 0:
+        return None
+    depth, in_string, escaped = 0, False, False
+    for i in range(start, len(text)):
+        char = text[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+            if depth == 0:
+                try:
+                    found = json.loads(text[start:i + 1])
+                except json.JSONDecodeError:
+                    return None
+                return found if isinstance(found, list) else None
+    return None
+
+
+def layered_agreement(records: list[dict], teacher: dict | None = None,
+                      label_free: bool = False) -> dict:
+    """판정 -> 대상 -> 방향 -> 쌍, **네 층으로 갈라** 센다. 2026-08-24에 더했다.
+
+    지금까지 표에는 `교사일치`(판정 한 칸)와 `라벨일치`(`(대상, 방향)` 쌍) 둘뿐이라,
+    라벨일치가 낮을 때 **대상을 못 고른 것인지 방향을 못 고른 것인지 알 수 없었다.**
+    2차run에서 갈라 보니 대상 42.4% · 방향 46.0% · 쌍 31.1%로, 둘이 비슷하게 어렵고
+    한쪽이 범인이 아니었다.
+
+    **파싱이 깨진 건은 원문에서 건져 쓴다**(`salvage_judgement`·`salvage_labels`).
+    형식 실패가 내용 눈금까지 부수기 때문이다 -- 자세한 것은 그 두 함수에 있다.
+    **AM 다섯은 이 함수를 안 쓰므로 형식 눈금은 그대로다.**
+
+    파싱이 깨졌는지는 `scores["AM1"]`으로 가른다. AM1이 곧 "출력이 JSON 하나로
+    파싱된다"라 다른 신호를 새로 만들 이유가 없다.
+
+    `labels`를 못 건진 건은 **분모에서 뺀다**(`label_unrecoverable`로 몇 건인지 적는다).
+    모델이 무엇이라 했는지 정말로 모르는 자리라 0점으로 세면 없는 오답을 만든다.
+    **파싱은 됐는데 라벨이 빈 건은 다르다** -- 그건 모델이 실제로 안 낸 것이라 오답으로
+    센다.
+
+    기존 `teacher_agreement`·`label_agreement`는 **안 건드린다.** 값이 바뀌면 지난
+    147줄 표와 비교가 끊긴다. 이 함수가 내는 것은 전부 새 열이다.
+    """
+    teacher = teacher or {}
+    judged, pairs, salvaged, unrecoverable = [], [], 0, 0
+    for record in records:
+        raw = record.get("raw") or ""
+        theirs = record.get("teacher_labels", teacher.get(record.get("id")))
+        if record.get("scores", {}).get("AM1", 1):
+            judged.append((record.get("judgement") or "", record.get("teacher_judgement")))
+            pairs.append((record.get("labels"), theirs))
+            continue
+        # 여기부터가 파싱이 깨진 자리다.
+        found = salvage_judgement(raw)
+        if found:
+            salvaged += 1
+        judged.append((found, record.get("teacher_judgement")))
+        labels = salvage_labels(raw)
+        if labels is None:
+            unrecoverable += 1
+        else:
+            pairs.append((labels, theirs))
+
+    matched = sum(1 for mine, theirs in judged if mine == theirs)
+    result = {"teacher_agreement_salvaged": round(matched / len(records), 3),
+              "salvaged_judgements": salvaged,
+              "label_unrecoverable": unrecoverable}
+    for key, part in (("target", "대상"), ("direction", "방향"), ("pair", "쌍")):
+        counted = label_agreement(pairs, label_free, part)
+        result[f"{key}_agreement"] = counted["rate"]
+        result[f"{key}_denominator"] = counted["denominator"]
+    return result
 
 
 def impact_subjects(impacts) -> list[str]:

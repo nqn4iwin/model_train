@@ -184,7 +184,7 @@ export HF_DATASETS_CACHE="/data1/yblee/datasets/huggingface"
 
 ## 전체 결과표 -- prerun · 1차run
 
-**`runs/prerun_1차run_전체표.html`** 에 148줄이 다 있다. 브라우저로 연다.
+**`visualizations/prerun_1차run_전체표.html`** 에 148줄이 다 있다. 브라우저로 연다.
 `runs/`는 커밋하지 않으므로 **이 파일은 각자 로컬에서 다시 만든다.**
 
 | | |
@@ -192,7 +192,7 @@ export HF_DATASETS_CACHE="/data1/yblee/datasets/huggingface"
 | 무엇 | 눈금 0점 1줄 + prerun(562건 학습) 75줄 + 1차run(1,655건 학습) 72줄 |
 | 기준 | 홀드아웃 **37건**(mof)으로 매긴 값. **135건 자로 바꾸기 전의 기록이다** |
 | 만든 날 | 2026-08-21 |
-| 재료 | `runs/<이름>/config.json` (설정) + `runs/<이름>/eval/summary.json` (결과) |
+| 재료 | `runs/<이름>/config.json` (설정) + `runs/<이름>/eval-mof/summary.json` (결과) |
 
 열은 `학습법 · full/sentence · seed · 기타 매개변수 · 기타 · 37건 결과`다.
 **「기타 매개변수」와 「기타」에는 `configs/_base.json`과 다른 칸만 적혀 있다** --
@@ -211,7 +211,7 @@ export HF_DATASETS_CACHE="/data1/yblee/datasets/huggingface"
 
 **`FROD`가 prerun에서 `못 돌림`으로 잡힌다.** `docs/HISTORY.md`에 "OOM 5개를 한 장에
 하나씩 재시도 -> frod만 살아남"이라 적혀 있지만, 그 결과가 1건짜리 채점 찌꺼기로
-남아 있어(`runs/frod/eval/`) 표에는 안 잡힌다. **1차run의 83.8%는 정상이다.**
+남아 있어(`runs/frod/eval-mof/`) 표에는 안 잡힌다. **1차run의 83.8%는 정상이다.**
 
 ## 참고
 

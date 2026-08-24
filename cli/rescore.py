@@ -22,9 +22,11 @@ import argparse
 import json
 from pathlib import Path
 
-from cli.sweep import write_table
+from cli.sweep import table_stem, write_table
+from sft.records import ruler_name
+from sft.scoring import (KEYS, collapsed, label_agreement, layered_agreement,
+                        skew, verdict)
 from cli.train import read_config
-from sft.scoring import KEYS, collapsed, label_agreement, skew, verdict
 
 # cli/ 안에 있으므로 저장소 뿌리는 한 단계 위다.
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,7 +47,12 @@ def row_for(name: str, summary: dict, prior: dict) -> dict:
             **summary["AM_rates"], "평균": summary["AM_mean"],
             "에폭": config.get("num_train_epochs"),
             "교사일치": summary.get("teacher_agreement"),
+            "건진판정": summary.get("teacher_agreement_salvaged"),
             "라벨일치": summary.get("label_agreement"),
+            "대상일치": summary.get("target_agreement"),
+            "방향일치": summary.get("direction_agreement"),
+            "쌍일치": summary.get("pair_agreement"),
+            "못건짐": summary.get("label_unrecoverable"),
             "쏠림": summary.get("skew"),
             "판정": summary.get("judgements"),
             "안 멈춤": summary.get("rambled_outputs"),
@@ -75,6 +82,9 @@ def regrade(records: list[dict], teacher: dict[str, list] | None = None,
         "teacher_agreement": round(matched / len(records), 3),
         "judgements": {j: said.count(j) for j in set(said)},
         **_labels(records, teacher or {}, label_free),
+        # 층별 열. **`teacher_agreement`·`label_agreement` 위에 덮지 않고 옆에 선다** --
+        # 저 둘의 값이 바뀌면 지난 147줄 표와 비교가 끊긴다.
+        **layered_agreement(records, teacher or {}, label_free),
     }
 
 
@@ -109,14 +119,20 @@ def main() -> None:
                     help="summary.json을 실제로 고친다. 기본은 보여주기만 한다")
     args = ap.parse_args()
     teacher = read_teacher(ROOT / args.data)
+    # **`--data` 하나가 셋을 다 정한다** -- 교사 라벨을 어디서 가져올지, 어느 채점
+    # 폴더를 읽을지, 어느 표에 쓸지. 셋이 따로 놀면 37건으로 잰 값과 135건으로 잰 값이
+    # 한 표에 앉는다(2026-08-24에 실제로 그럴 뻔했다).
+    folder = ruler_name(ROOT / args.data)
+    stem = table_stem(folder)
+    print(f"자: {args.data}  ({len(teacher)}건) -> runs/*/{folder}/ -> runs/{stem}.md\n")
 
     # 전에 만든 표를 바탕으로 삼는다. **`못 돌림` 줄은 기록이 없어서 여기서만 나온다** --
     # 새로 짓겠다고 버리면 학습 자체가 실패한 열 개가 표에서 사라진다.
-    table_path = args.runs / "sweep.json"
+    table_path = args.runs / f"{stem}.json"
     table = json.loads(table_path.read_text(encoding="utf-8")) if table_path.exists() else {}
 
     changed, same, broken = [], 0, []
-    for records_path in sorted(args.runs.glob("*/eval/records.jsonl")):
+    for records_path in sorted(args.runs.glob(f"*/{folder}/records.jsonl")):
         name = records_path.parents[1].name
         summary_path = records_path.parent / "summary.json"
         records = [json.loads(line) for line
@@ -173,8 +189,8 @@ def main() -> None:
             print(f"  {name:<28} {why}")
 
     if args.write:
-        write_table(table)
-        print(f"\n표를 다시 썼습니다: runs/sweep.md · runs/sweep.json ({len(table)}줄)")
+        write_table(table, stem, args.data)
+        print(f"\n표를 다시 썼습니다: runs/{stem}.md · runs/{stem}.json ({len(table)}줄)")
     else:
         print("\n보여주기만 했습니다. 반영하려면 --write 를 붙이세요.")
         print("**`cli.sweep --all`은 부르지 마세요** -- 결과가 없는 설정을 아직 안 돌린")

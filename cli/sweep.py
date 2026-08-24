@@ -30,12 +30,35 @@ import threading
 import time
 from pathlib import Path
 
+from sft.records import ruler_name
 from cli.train import read_config
 
 # cli/ 안에 있으므로 저장소 뿌리는 한 단계 위다.
 ROOT = Path(__file__).resolve().parents[1]
 HOLDOUT = "data/20260811__annotate__v2.2/holdout.jsonl"
 GPUS = ["4", "5"]
+
+
+def eval_dir() -> str:
+    """채점 결과를 넣을 폴더 이름. **홀드아웃이 정한다** -- `eval-mof-motie` 꼴이다.
+
+    2026-08-24까지는 그냥 `eval`이었는데, 홀드아웃이 37건(mof)에서 135건(mof+motie)으로
+    늘면서 **같은 이름 아래 서로 다른 자로 잰 값이 섞였다.** `--holdout`으로 자를 바꾸면
+    폴더도 같이 갈리도록 여기서 뽑는다. `HOLDOUT`은 `main()`이 갈아끼우는 전역이라
+    미리 계산해 두지 않고 부를 때마다 읽는다.
+    """
+    return ruler_name(ROOT / HOLDOUT)
+
+
+def table_stem(ruler: str | None = None) -> str:
+    """표 파일 이름. **자마다 따로 선다** -- `sweep.md` · `sweep-mof-motie.md`.
+
+    **37건(mof) 자만 예외로 옛 이름 `sweep`을 쓴다.** `README.md`와 `docs/스윕_결과.md`
+    같은 **안 고치기로 한 결과 문서들이 `runs/sweep.md`를 가리키고** 있어서다. 이름을
+    바꾸면 그 문서들이 없는 파일을 가리킨다.
+    """
+    ruler = ruler or eval_dir()
+    return "sweep" if ruler == "eval-mof" else "sweep-" + ruler.removeprefix("eval-")
 
 
 def check(paths: list[Path]) -> list[Path]:
@@ -65,7 +88,7 @@ def collect(path: Path) -> dict | None:
     GPU를 못 놓거나, 사람이 멈춘다. 끝난 것을 다시 돌리지 않아야 이어서 할 수 있다.
     """
     config = read_config(path)
-    summary_path = ROOT / config["output_dir"] / "eval" / "summary.json"
+    summary_path = ROOT / config["output_dir"] / eval_dir() / "summary.json"
     if not summary_path.exists():
         return None
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -74,7 +97,12 @@ def collect(path: Path) -> dict | None:
             **summary["AM_rates"], "평균": summary["AM_mean"],
             "에폭": config.get("num_train_epochs"),
             "교사일치": summary.get("teacher_agreement"),
+            "건진판정": summary.get("teacher_agreement_salvaged"),
             "라벨일치": summary.get("label_agreement"),
+            "대상일치": summary.get("target_agreement"),
+            "방향일치": summary.get("direction_agreement"),
+            "쌍일치": summary.get("pair_agreement"),
+            "못건짐": summary.get("label_unrecoverable"),
             "쏠림": summary.get("skew"),
             "판정": summary.get("judgements"),
             "안 멈춤": summary["rambled_outputs"], "분": "-"}
@@ -108,8 +136,8 @@ def run_one(path: Path, gpu: str, results: dict, lock: threading.Lock) -> None:
 
     print(f"  [GPU {gpu}] 채점 시작  {name}")
     code = step("채점", [sys.executable, "-m", "cli.evaluate", "--data", HOLDOUT,
-                        "--adapter", f"{out}/final", "--out", f"{out}/eval"])
-    summary_path = ROOT / out / "eval" / "summary.json"
+                        "--adapter", f"{out}/final", "--out", f"{out}/{eval_dir()}"])
+    summary_path = ROOT / out / eval_dir() / "summary.json"
     if code != 0 or not summary_path.exists():
         with lock:
             results[name] = {"stage": "채점", "verdict": "못 돌림", "returncode": code}
@@ -124,17 +152,31 @@ def run_one(path: Path, gpu: str, results: dict, lock: threading.Lock) -> None:
                          **summary["AM_rates"], "평균": summary["AM_mean"],
                          "에폭": config.get("num_train_epochs"),
                          "교사일치": summary.get("teacher_agreement"),
+                         "건진판정": summary.get("teacher_agreement_salvaged"),
                          "라벨일치": summary.get("label_agreement"),
+                         "대상일치": summary.get("target_agreement"),
+                         "방향일치": summary.get("direction_agreement"),
+                         "쌍일치": summary.get("pair_agreement"),
+                         "못건짐": summary.get("label_unrecoverable"),
                          "쏠림": summary.get("skew"),
                          "판정": summary.get("judgements"),
                          "안 멈춤": summary["rambled_outputs"],
                          "분": round((time.time() - started) / 60, 1)}
-        write_table(results)
+        write_table(results, table_stem())
     print(f"  [GPU {gpu}] {summary['verdict']:<6} {name}  평균 {summary['AM_mean']:.1%}")
 
 
-COLUMNS = ["에폭", "AM1", "AM2", "AM3", "AM6s", "AM8s", "평균", "교사일치",
-           "라벨일치", "쏠림", "판정", "안 멈춤", "분"]
+# **뒤쪽 넷은 2026-08-24에 더한 「층별」 열이다.** `교사일치`·`라벨일치`는 그대로 두고
+# 옆에 세운다 -- 값을 고치면 지난 147줄 표와 비교가 끊긴다.
+#
+#   건진판정  판정 한 칸. 파싱이 깨진 건은 원문에서 건져 센다
+#   대상일치  `대상` 7종 집합만
+#   방향일치  `방향` 5종 집합만
+#   쌍일치    `(대상, 방향)` 집합. `라벨일치`와 같은 잣대인데 건지기가 들어간 판이다
+#   못건짐    labels 를 못 건져 분모에서 뺀 건수. **분모가 줄면 값이 올라 보이므로 같이 본다**
+COLUMNS = ["에폭", "AM1", "AM2", "AM3", "AM6s", "AM8s", "평균",
+           "교사일치", "건진판정", "라벨일치", "대상일치", "방향일치", "쌍일치", "못건짐",
+           "쏠림", "판정", "안 멈춤", "분"]
 
 
 def cell(value, column: str) -> str:
@@ -146,21 +188,44 @@ def cell(value, column: str) -> str:
     return str(value)
 
 
-def write_table(results: dict) -> list[str]:
+def baseline_note(holdout: str) -> str:
+    """`교사일치` 열 옆에 붙일 **기준선 문장**을 홀드아웃에서 계산한다.
+
+    지금까지 이 문장은 37건 기준(29.7% · 70.3%)이 **글자로 박혀** 있었다. 홀드아웃이
+    135건으로 늘면서 그 값이 16.3% · 83.7%로 바뀌는데, 문장이 안 따라오면 **표를 읽는
+    사람이 틀린 기준선으로 붕괴를 판정한다.** 135건에서 "무조건 positive"는 83.7%라
+    잘 배운 줄보다도 높게 나온다 -- 제일 위험한 자리다.
+    """
+    counted = {"positive": 0, "negative": 0}
+    for line in (ROOT / holdout).read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            said = json.loads(line).get("judgement")
+            counted[said] = counted.get(said, 0) + 1
+    total = sum(counted.values())
+    return (f"`교사일치`는 AM 항목이 아니라 붕괴를 알아보는 눈금이다."
+            f" 홀드아웃이 positive {counted['positive']} · negative {counted['negative']}이라"
+            f" **무조건 negative면 {counted['negative'] / total:.1%},"
+            f" 무조건 positive면 {counted['positive'] / total:.1%}**가 나온다."
+            f" 이 두 값 근처는 붕괴로 읽는다.")
+
+
+def write_table(results: dict, stem: str = "sweep", holdout: str | None = None) -> list[str]:
     """한 건 끝날 때마다 곧바로 표를 다시 쓴다.
 
     마지막에 한 번만 쓰면 **열일곱 시간째에 죽었을 때 열일곱 시간을 잃는다.**
     `annotate.py`가 697건을 한 줄씩 흘려 쓴 것과 같은 이유다.
     """
-    lines = ["# 스윕 결과", "",
+    lines = [f"# 스윕 결과 -- {ruler_name(ROOT / (holdout or HOLDOUT))} 자", "",
              "학습 전 KORMo(제로샷) 평균 7.6% · AM1 13.5% · negative 0건."
              " `docs/베이스라인_기록.md` 참고.", "",
              "**판정이 한 종류뿐이면 `붕괴`다. AM 점수를 믿지 않는다.**"
              " `labels`가 비면 AM2·AM3이 검사할 것이 없어 자동 만점이 되므로,"
              " '무조건 negative'가 이 채점기의 만점 전략이다.", "",
-             "`교사일치`는 AM 항목이 아니라 붕괴를 알아보는 눈금이다."
-             " 홀드아웃이 positive 26 · negative 11이라 **무조건 negative면 29.7%,"
-             " 무조건 positive면 70.3%**가 나온다. 이 두 값 근처는 붕괴로 읽는다.", "",
+             baseline_note(holdout or HOLDOUT), "",
+             "**`건진판정`·`대상일치`·`방향일치`·`쌍일치`는 파싱이 깨진 건을 원문에서"
+             " 건져 센 판이다.** AM 다섯은 안 건진다 -- AM1이 곧 '파싱된다'라 0점이 맞다."
+             " `못건짐`은 labels를 못 건져 **분모에서 뺀** 건수다. 분모가 줄면 값이"
+             " 올라 보이므로 두 열을 같이 본다.", "",
              "`라벨일치`는 판정 한 칸이 아니라 **그 안의 `(대상, 방향)` 집합**이"
              " 교사와 같은가다. **분모는 교사가 라벨을 단 건이다** -- negative 건은"
              " 양쪽 다 비어 저절로 맞으므로 그것까지 세면 negative가 많을수록 값이"
@@ -181,8 +246,8 @@ def write_table(results: dict) -> list[str]:
         lines.append(f"| {name} | {row.get('peft_type', '-')} | {row['verdict']} | "
                      + " | ".join(cells) + f" | {row.get('note', '')} |")
     (ROOT / "runs").mkdir(exist_ok=True)
-    (ROOT / "runs" / "sweep.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    (ROOT / "runs" / "sweep.json").write_text(
+    (ROOT / "runs" / f"{stem}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (ROOT / "runs" / f"{stem}.json").write_text(
         json.dumps(results, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return lines
 
@@ -252,8 +317,12 @@ def main() -> None:
     for thread in threads:
         thread.join()
 
-    print("\n".join(write_table(results)[6:]))
-    print(f"\n저장: runs/sweep.md · runs/sweep.json")
+    # 머리말은 건너뛰고 표만 찍는다. **줄 수로 자르지 않는다** -- 머리말 문장이
+    # 늘거나 줄면 조용히 어긋난다.
+    rendered = write_table(results, table_stem())
+    head = next(i for i, line in enumerate(rendered) if line.startswith("| 실험"))
+    print("\n".join(rendered[head:]))
+    print(f"\n저장: runs/{table_stem()}.md · runs/{table_stem()}.json")
 
 
 if __name__ == "__main__":

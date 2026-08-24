@@ -28,9 +28,9 @@
 
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
     python -m cli.compare teacher --run runs/delora-r2 runs/miss-r2 --n 60 \\
-        --out runs/Q1_라벨과문장.html
+        --out visualizations/Q1_라벨과문장.html
     python -m cli.compare rounds --pair runs/delora:runs/delora-r2 \\
-        --out runs/Q2_데이터효과.html
+        --out visualizations/Q2_데이터효과.html
 """
 from __future__ import annotations
 
@@ -42,6 +42,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from cli.readout import diff_html, label_set, read_jsonl
+from sft.records import eval_dir_of
 
 ROOT = Path(__file__).resolve().parents[1]
 HOLDOUT = "data/20260811__annotate__v2.2/holdout.jsonl"
@@ -88,13 +89,13 @@ def make_item(rid: str, teacher: dict, first: tuple[str, dict], second: tuple[st
 
 
 def build_teacher(runs: list[Path], holdout: Path, n: int,
-                  cap: int) -> tuple[list[dict], dict]:
+                  cap: int, eval_dir: str | None = None) -> tuple[list[dict], dict]:
     """Q1 -- 모델 문장과 교사 문장을 맞붙인다. **라벨 일치 여부로 반씩 뽑는다.**"""
     T = read_jsonl(holdout)
     pool: dict[str, list[dict]] = {"같음": [], "다름": []}
     seen: dict[tuple, set] = defaultdict(set)
     for run in runs:
-        R = read_jsonl(run / "eval" / "records.jsonl")
+        R = read_jsonl(eval_dir_of(run, eval_dir) / "records.jsonl")
         for rid in T:
             if rid not in R:
                 continue
@@ -147,12 +148,13 @@ def build_teacher(runs: list[Path], holdout: Path, n: int,
 
 
 def build_rounds(pairs: list[tuple[Path, Path]], holdout: Path,
-                 cap: int) -> tuple[list[dict], dict]:
+                 cap: int, eval_dir: str | None = None) -> tuple[list[dict], dict]:
     """Q2 -- 같은 조문에 1차 모델과 2차 모델이 낸 문장을 맞붙인다."""
     T = read_jsonl(holdout)
     picked = []
     for a_dir, b_dir in pairs:
-        A, B = (read_jsonl(d / "eval" / "records.jsonl") for d in (a_dir, b_dir))
+        A, B = (read_jsonl(eval_dir_of(d, eval_dir) / "records.jsonl")
+                for d in (a_dir, b_dir))
         for rid in T:
             if rid not in A or rid not in B:
                 continue
@@ -464,6 +466,9 @@ def main() -> None:
                     help="조문 하나가 몇 번까지 나올 수 있나. 홀드아웃에 문장이 있는 조문이 "
                          "26개뿐이라, 상한이 없으면 한 조문이 판을 지배한다")
     ap.add_argument("--data", default=HOLDOUT, help="교사 정답이 든 홀드아웃")
+    ap.add_argument("--eval-dir", default=None,
+                    help="어느 자로 잰 것을 읽을지 (예: eval-mof-motie)."
+                         " 실험에 채점 결과가 하나뿐이면 안 줘도 된다")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
@@ -475,7 +480,8 @@ def main() -> None:
         if not args.run:
             ap.error("teacher 모드에는 --run 이 필요하다")
         items, stats = build_teacher([resolve(r) for r in args.run],
-                                     resolve(args.data), args.n, args.cap)
+                                     resolve(args.data), args.n, args.cap,
+                                     args.eval_dir)
         meta = f"실험 {len(args.run)}개에서 {len(items)}건"
     else:
         if not args.pair:
@@ -486,10 +492,12 @@ def main() -> None:
                 ap.error(f"--pair 는 '1차경로:2차경로' 꼴이어야 한다: {spec}")
             a, b = spec.split(":", 1)
             pairs.append((resolve(a), resolve(b)))
-        items, stats = build_rounds(pairs, resolve(args.data), args.cap)
+        items, stats = build_rounds(pairs, resolve(args.data), args.cap,
+                                    args.eval_dir)
         meta = f"짝 {len(pairs)}개에서 {len(items)}건"
 
-    out = args.out or (ROOT / "runs" / f"채점_{args.mode}.html")
+    out = args.out or (ROOT / "visualizations" / f"채점_{args.mode}.html")
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page(args.mode, items, meta), encoding="utf-8")
 
     for k, v in stats.items():

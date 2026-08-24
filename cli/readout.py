@@ -17,7 +17,7 @@
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
     python -m cli.readout --run runs/delora
     python -m cli.readout --run runs/delora-r2 runs/delora runs/vera-r2 \
-        --label '2차 최고' '1차 최고' '2차 최저' --out runs/판독표-r2.html
+        --label '2차 최고' '1차 최고' '2차 최저' --out visualizations/판독표-r2.html
 """
 from __future__ import annotations
 
@@ -26,6 +26,8 @@ import html
 import json
 from difflib import SequenceMatcher
 from pathlib import Path
+
+from sft.records import eval_dir_of
 
 ROOT = Path(__file__).resolve().parents[1]
 HOLDOUT = "data/20260811__annotate__v2.2/holdout.jsonl"
@@ -123,9 +125,9 @@ def reading_html(row: dict, tokens: int | None) -> str:
 
 
 def build(run_dir: Path, holdout_path: Path, pid: int = 0, role: str = "",
-          mode: str = "full") -> tuple[str, dict]:
+          mode: str = "full", eval_dir: str | None = None) -> tuple[str, dict]:
     teacher = read_jsonl(holdout_path)
-    model = read_jsonl(run_dir / "eval" / "records.jsonl")
+    model = read_jsonl(eval_dir_of(run_dir, eval_dir) / "records.jsonl")
     shared = [i for i in teacher if i in model]
 
     cases = []
@@ -366,14 +368,17 @@ for (const button of document.querySelectorAll('.controls button')) {{
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--run", required=True, nargs="+", type=Path,
-                    help="실험 폴더. 여럿 주면 탭으로 묶는다. 그 안의 eval/records.jsonl을 읽는다")
+                    help="실험 폴더. 여럿 주면 탭으로 묶는다. 그 안의 eval-*/records.jsonl을 읽는다")
+    ap.add_argument("--eval-dir", default=None,
+                    help="어느 자로 잰 것을 읽을지 (예: eval-mof-motie)."
+                         " 실험에 채점 결과가 하나뿐이면 안 줘도 된다")
     ap.add_argument("--label", nargs="+", default=None,
                     help="탭에 적을 역할. --run 과 개수가 같아야 한다 (예: '2차 최고')")
     ap.add_argument("--sentences", action="store_true",
                     help="direct_impact 문장만 앞으로 꺼낸 판. 조용히 틀림이 맨 위로 온다")
     ap.add_argument("--data", default=HOLDOUT, help="교사 정답이 든 홀드아웃")
     ap.add_argument("--out", type=Path, default=None,
-                    help="안 주면 runs/판독표.html")
+                    help="안 주면 visualizations/판독표.html")
     args = ap.parse_args()
 
     labels = args.label or [""] * len(args.run)
@@ -384,12 +389,14 @@ def main() -> None:
     for pid, (run, role) in enumerate(zip(args.run, labels)):
         run_dir = run if run.is_absolute() else ROOT / run
         panel, stats = build(run_dir, ROOT / args.data, pid, role,
-                             mode="sentences" if args.sentences else "full")
+                             mode="sentences" if args.sentences else "full",
+                             eval_dir=args.eval_dir)
         panels.append(panel)
         tabs.append((role or f"판 {pid + 1}", run_dir.name))
         every.append((run_dir.name, role, stats))
 
-    out = args.out or (ROOT / "runs" / "판독표.html")
+    out = args.out or (ROOT / "visualizations" / "판독표.html")
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page(panels, tabs), encoding="utf-8")
 
     for name, role, stats in every:
