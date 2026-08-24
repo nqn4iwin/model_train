@@ -150,6 +150,8 @@ def main() -> None:
                     help="학습하지 않고 한 건이 어떻게 토큰이 되는지만 보여준다")
     ap.add_argument("--max-steps", type=int, default=None,
                     help="학습 step 수 상한. GPU smoke test에는 1을 준다")
+    ap.add_argument("--output-dir", default=None,
+                    help="결과 폴더 override. smoke test를 본 실험과 분리할 때 쓴다")
     args = ap.parse_args()
     if args.max_steps is not None and args.max_steps < 1:
         ap.error("--max-steps는 1 이상이어야 합니다")
@@ -171,10 +173,11 @@ def main() -> None:
     from peft import get_peft_config
     from trl import SFTConfig, SFTTrainer
 
-    output_dir = ROOT / config["output_dir"]
+    output_name = args.output_dir or config["output_dir"]
+    output_dir = ROOT / output_name
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "config.json").write_text(
-        json.dumps({**config, "git_revision": git_revision(),
+        json.dumps({**config, "output_dir": output_name, "git_revision": git_revision(),
                     "cuda_visible_devices": os.environ["CUDA_VISIBLE_DEVICES"],
                     "rows": len(rows), "max_steps": max_steps}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8")
@@ -254,8 +257,8 @@ def main() -> None:
     # 홀드아웃이 그 실험의 자이므로 거기서 뽑는다. 없으면 자리표시자를 적는다.
     beside = ROOT / Path(config["data"]).with_name("holdout.jsonl")
     folder = ruler_name(beside) if beside.exists() else "<채점폴더>"
-    print(f"      --adapter {config['output_dir']}/final"
-          f" --out {config['output_dir']}/{folder}")
+    print(f"      --adapter {output_name}/final"
+          f" --out {output_name}/{folder}")
 
 
 if __name__ == "__main__":
