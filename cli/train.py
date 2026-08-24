@@ -148,9 +148,14 @@ def main() -> None:
     ap.add_argument("--config", required=True)
     ap.add_argument("--inspect", action="store_true",
                     help="학습하지 않고 한 건이 어떻게 토큰이 되는지만 보여준다")
+    ap.add_argument("--max-steps", type=int, default=None,
+                    help="학습 step 수 상한. GPU smoke test에는 1을 준다")
     args = ap.parse_args()
+    if args.max_steps is not None and args.max_steps < 1:
+        ap.error("--max-steps는 1 이상이어야 합니다")
     config = read_config(args.config)
     rows = load_rows(config)
+    max_steps = args.max_steps if args.max_steps is not None else config.get("max_steps", -1)
 
     if args.inspect:
         inspect(config, rows)
@@ -171,7 +176,7 @@ def main() -> None:
     (output_dir / "config.json").write_text(
         json.dumps({**config, "git_revision": git_revision(),
                     "cuda_visible_devices": os.environ["CUDA_VISIBLE_DEVICES"],
-                    "rows": len(rows)}, ensure_ascii=False, indent=2) + "\n",
+                    "rows": len(rows), "max_steps": max_steps}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8")
 
     tokenizer = load_tokenizer(config["model"], revision=config.get("model_revision", "main"))
@@ -223,6 +228,7 @@ def main() -> None:
             gradient_accumulation_steps=config.get("gradient_accumulation_steps", 8),
             learning_rate=config.get("learning_rate", 2e-4),
             num_train_epochs=config.get("num_train_epochs", 3),
+            max_steps=max_steps,
             logging_steps=config.get("logging_steps", 5),
             save_strategy=config.get("save_strategy", "epoch"),
             save_total_limit=config.get("save_total_limit", 1),
