@@ -1,0 +1,20 @@
+{
+  "extends": "_base.json",
+  "name": "delora-sentence-run2A",
+  "note": "축 1(기획서 3.3 「무엇을 학습시키나」)을 닫으려고 만든 것이다. **이 프로젝트의 영가설이 '교사가 정의한 추론 과정(labels·impacts)을 함께 학습시켜도 학생의 direct_impact 문장은 달라지지 않는다'이고, 그것을 시험하는 조건이 이 `target: sentence`다** -- `full`에서 labels와 impacts만 뺀 것이고 나머지 칸은 `delora-run2A`와 한 글자도 다르지 않다. 짝은 `delora-run2A`(seed 42)이며 데이터·방법·에폭·학습률이 전부 같고 `target` 한 칸만 다르다. **seed 셋을 주는 이유**는 `docs/PLAN.md`가 축 1을 보류해둔 사유가 정확히 'sentence 쪽 seed가 한 알뿐'이어서다 -- 2026-08-14에 시범 넷이 전부 seed 42 한 알이라 결론이 통째로 뒤집힌 전례가 있다. **채점 주의: 이 조건은 표의 어느 열로도 `full`과 못 견준다.** labels를 안 내므로 라벨·대상·방향·쌍일치가 전부 `해당 없음`이고, AM2·AM3은 검사할 것이 없어 자동 만점이며(`sft/formatting.py`의 build_completion 주석), AM8s는 (n-positive)/n이라 정답대로 맞힐수록 내려간다. **견주는 자리는 표가 아니라 `H_eval`의 심판 Q2(서술일치)다** -- 그것이 direct_impact를 직접 재는 유일한 눈금이다.",
+  "data": "data/20260821__annotate__v2.2-run2A/train.jsonl",
+  "target": "sentence",
+  "peft": {
+    "peft_type": "DELORA",
+    "r": 32,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  }
+}
