@@ -1,0 +1,44 @@
+<meta charset="utf-8"><title>심판 집계</title>
+<style>body{font:14px/1.7 -apple-system,'Segoe UI',sans-serif;margin:2rem auto;max-width:1000px;
+ padding:0 1rem;color:#111} pre{background:#f6f7f9;border:1px solid #dde;border-radius:6px;
+ padding:1rem;overflow:auto;font-size:.84rem} table{border-collapse:collapse;width:100%}
+ th,td{border:1px solid #dcdfe4;padding:.3rem .5rem;font-size:.85rem;text-align:left}
+ thead th{background:#f2f4f7} code{background:#f6f7f9;padding:.05rem .3rem}
+ .note{background:#fffbe9;border-left:3px solid #e2c86a;padding:.6rem .9rem;font-size:.88rem}</style>
+<h1>심판 집계</h1>
+<div class="note"><b>이것은 판정이 아니라 후보 목록이다.</b>
+ <code>verdict</code>도 <code>sweep*.md</code>도 건드리지 않는다.
+ 아래 「정답키 의심」은 <b>사람이 조문을 보고 확인해야</b> 확정된다.<br>
+ 만든 명령 · <code>python -m H_eval.read_judge --dir H_eval/20260825__judge --out &#x27;H_eval/20260825__judge/집계.html&#x27;</code></div>
+<pre>── 겹치기 (같은 것을 두 번 물었을 때 답이 갈린 비율)
+   Q1  10쌍 중 0쌍이 갈렸다  (0.0%)
+   Q2  20쌍 중 0쌍이 갈렸다  (0.0%)
+
+── Q1  교사 판정 대 심판
+   교사              심판: 달라졌다        심판: 안 달라졌다
+   positive              97                16
+   negative               0                22
+
+   ** 정답키 의심 16건 ** (교사 positive 113건 중 14.2%)
+     before_2022-B0737      확신 높음   호 번호가 바뀌고 지식재산권 자료가 연구개발과제 성과와 관련된다는 문구가 보태졌지만 금지되는 
+     before_2022-B0676      확신 높음   &#x27;실시계약&#x27;을 &#x27;기술실시계약&#x27;으로 명칭만 명확히 했으며 국내 중소기업 우선 계약 순위는 그대로
+     before_2022-B0080      확신 높음   R&amp;D 샌드박스의 명칭을 R&amp;D자율성트랙으로 바꾸었지만 대상과 일부 규정을 달리 적용하는 제도
+     before_2022-B0093      확신 높음   전자상거래지원센터사업의 근거법 명칭이 전자문서까지 포함한 현행 법률명으로 고쳐졌을 뿐 대상 사
+     before_2022-B0253      확신 높음   훈령 자체의 주기적 재검토 기준일을 2022년에서 2024년으로 갱신한 것으로 조항이 외부에 
+     before_2022-B0654      확신 높음   성과활용현황보고서 명칭을 성과활용보고서로 줄였을 뿐 공개해야 할 성과와 공개 대상은 같다.
+     before_2022-B0790      확신 높음   R&amp;D 샌드박스를 R&amp;D자율성트랙으로 이름만 바꾸었고 적용 세부사항을 다룬다는 내용은 같다.
+     before_2022-B0715      확신 높음   조 제목이 붙고 &#x27;수행결과&#x27;가 &#x27;연구개발성과&#x27;로 용어 정리됐을 뿐 국외유출 방지를 위한 지식재
+     before_2022-B0642      확신 높음   &#x27;사업수행성과&#x27;를 정의된 표현인 &#x27;연구개발성과&#x27;로 바꾸었을 뿐 지식재산권 출원·등록·포기 시 
+     before_2022-B0100      확신 높음   엔지니어링기술진흥사업의 근거법을 현행 명칭인 엔지니어링산업 진흥법으로 바꾼 데 그친다.
+
+── Q2  서술이 같은 내용인가  ★ 라벨로 갈라 본다
+   실행                                 건        같다      일부     다르다
+   delora-run2A          라벨 같음       42   39( 92.9%)       2       1
+   delora-run2A          라벨 다름       64   37( 57.8%)       8      19
+   lora-run2A            라벨 같음       21   19( 90.5%)       0       2
+   lora-run2A            라벨 다름       29   13( 44.8%)       6      10
+
+   ** 두 줄의 「같다」가 비슷하면 라벨일치가 서술을 예측하지 못한다는 뜻이다 **
+</pre>
+<h2>정답키 의심 — 전체 16건</h2>
+<table><thead><tr><th>건</th><th>심판 확신</th><th>근거</th></tr></thead><tbody><tr><td>before_2022-B0660</td><td>보통</td><td>등록처 명칭을 국가기술사업화종합정보망에서 국가기술은행(NTB)으로 현행화했지만 성과 이전 시 등록해야 한다는 절차는 같다.</td></tr><tr><td>before_2022-B0737</td><td>높음</td><td>호 번호가 바뀌고 지식재산권 자료가 연구개발과제 성과와 관련된다는 문구가 보태졌지만 금지되는 미제출·부정제출 행위는 같다.</td></tr><tr><td>before_2022-B0676</td><td>높음</td><td>&#x27;실시계약&#x27;을 &#x27;기술실시계약&#x27;으로 명칭만 명확히 했으며 국내 중소기업 우선 계약 순위는 그대로다.</td></tr><tr><td>before_2022-B0739</td><td>보통</td><td>과제 수행을 포기할 수 있는 당사자인 연구자 또는 연구개발기관을 명시했을 뿐 정당한 사유 없는 포기라는 위반행위는 동일하다.</td></tr><tr><td>before_2022-B0080</td><td>높음</td><td>R&amp;D 샌드박스의 명칭을 R&amp;D자율성트랙으로 바꾸었지만 대상과 일부 규정을 달리 적용하는 제도 내용은 같다.</td></tr><tr><td>before_2022-B0093</td><td>높음</td><td>전자상거래지원센터사업의 근거법 명칭이 전자문서까지 포함한 현행 법률명으로 고쳐졌을 뿐 대상 사업은 같다.</td></tr><tr><td>before_2022-B0253</td><td>높음</td><td>훈령 자체의 주기적 재검토 기준일을 2022년에서 2024년으로 갱신한 것으로 조항이 외부에 부과하는 권리·의무의 변경이 아니다.</td></tr><tr><td>before_2022-B0232</td><td>보통</td><td>지원 가능한 경비의 대상 시스템을 과제지원시스템에서 앞 항의 시스템으로 축약해 가리켰을 뿐 경비 지원 권한은 같다.</td></tr><tr><td>before_2022-B0654</td><td>높음</td><td>성과활용현황보고서 명칭을 성과활용보고서로 줄였을 뿐 공개해야 할 성과와 공개 대상은 같다.</td></tr><tr><td>before_2022-B0689</td><td>보통</td><td>구축·운영하는 사업화 정보망의 명칭을 국가기술은행(NTB)으로 현행화했을 뿐 시스템 운영·연계와 비공개 절차는 같다.</td></tr><tr><td>before_2022-B0790</td><td>높음</td><td>R&amp;D 샌드박스를 R&amp;D자율성트랙으로 이름만 바꾸었고 적용 세부사항을 다룬다는 내용은 같다.</td></tr><tr><td>before_2022-B0715</td><td>높음</td><td>조 제목이 붙고 &#x27;수행결과&#x27;가 &#x27;연구개발성과&#x27;로 용어 정리됐을 뿐 국외유출 방지를 위한 지식재산권 보호지원 의무는 같다.</td></tr><tr><td>before_2022-B0642</td><td>높음</td><td>&#x27;사업수행성과&#x27;를 정의된 표현인 &#x27;연구개발성과&#x27;로 바꾸었을 뿐 지식재산권 출원·등록·포기 시 조치의무는 같다.</td></tr><tr><td>before_2022-B0089</td><td>보통</td><td>같은 지역산업 사업들의 근거 특별법 명칭을 지방자치분권 및 지역균형발전 특별법으로 현행화한 것이다.</td></tr><tr><td>before_2022-B0100</td><td>높음</td><td>엔지니어링기술진흥사업의 근거법을 현행 명칭인 엔지니어링산업 진흥법으로 바꾼 데 그친다.</td></tr><tr><td>before_2022-B0095</td><td>보통</td><td>산학협력확산사업에 적용되는 두 법률의 명칭을 국민 평생 직업능력 개발법과 지능정보화 기본법으로 현행화했다.</td></tr></tbody></table>

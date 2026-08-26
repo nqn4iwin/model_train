@@ -1,0 +1,44 @@
+<meta charset="utf-8"><title>심판 집계</title>
+<style>body{font:14px/1.7 -apple-system,'Segoe UI',sans-serif;margin:2rem auto;max-width:1000px;
+ padding:0 1rem;color:#111} pre{background:#f6f7f9;border:1px solid #dde;border-radius:6px;
+ padding:1rem;overflow:auto;font-size:.84rem} table{border-collapse:collapse;width:100%}
+ th,td{border:1px solid #dcdfe4;padding:.3rem .5rem;font-size:.85rem;text-align:left}
+ thead th{background:#f2f4f7} code{background:#f6f7f9;padding:.05rem .3rem}
+ .note{background:#fffbe9;border-left:3px solid #e2c86a;padding:.6rem .9rem;font-size:.88rem}</style>
+<h1>심판 집계</h1>
+<div class="note"><b>이것은 판정이 아니라 후보 목록이다.</b>
+ <code>verdict</code>도 <code>sweep*.md</code>도 건드리지 않는다.
+ 아래 「정답키 의심」은 <b>사람이 조문을 보고 확인해야</b> 확정된다.<br>
+ 만든 명령 · <code>python -m H_eval.read_judge --dir H_eval/20260825__judge --out &#x27;H_eval/20260825__judge/집계.html&#x27;</code></div>
+<pre>── 겹치기 (같은 것을 두 번 물었을 때 답이 갈린 비율)
+   Q1  10쌍 중 4쌍이 갈렸다  (40.0%)
+   Q2  20쌍 중 13쌍이 갈렸다  (65.0%)
+
+── Q1  교사 판정 대 심판
+   교사              심판: 달라졌다        심판: 안 달라졌다
+   positive              88                25
+   negative              17                 5
+
+   ** 정답키 의심 25건 ** (교사 positive 113건 중 22.1%)
+     before_2022-B0747      확신 높음   가짜
+     before_2022-B0203      확신 높음   가짜
+     before_2022-B0253      확신 높음   가짜
+     before_2022-B0677      확신 높음   가짜
+     before_2022-B0232      확신 높음   가짜
+     before_2022-B0693      확신 높음   가짜
+     before_2022-B0597      확신 높음   가짜
+     before_2022-B0688      확신 보통   가짜
+     before_2022-B0218      확신 보통   가짜
+     before_2022-B0660      확신 보통   가짜
+
+── Q2  서술이 같은 내용인가  ★ 라벨로 갈라 본다
+   실행                                 건        같다      일부     다르다
+   delora-run2A          라벨 같음       42   18( 42.9%)       9      15
+   delora-run2A          라벨 다름       64   38( 59.4%)      14      12
+   lora-run2A            라벨 같음       21   12( 57.1%)       6       3
+   lora-run2A            라벨 다름       29   11( 37.9%)      10       8
+
+   ** 두 줄의 「같다」가 비슷하면 라벨일치가 서술을 예측하지 못한다는 뜻이다 **
+</pre>
+<h2>정답키 의심 — 전체 25건</h2>
+<table><thead><tr><th>건</th><th>심판 확신</th><th>근거</th></tr></thead><tbody><tr><td>before_2022-B0688</td><td>보통</td><td>가짜</td></tr><tr><td>before_2022-B0218</td><td>보통</td><td>가짜</td></tr><tr><td>before_2022-B0660</td><td>보통</td><td>가짜</td></tr><tr><td>before_2022-B0310</td><td>낮음</td><td>가짜</td></tr><tr><td>before_2022-B0130</td><td>보통</td><td>가짜</td></tr><tr><td>before_2022-B0747</td><td>높음</td><td>가짜</td></tr><tr><td>before_2022-B0203</td><td>높음</td><td>가짜</td></tr><tr><td>before_2022-B0129</td><td>보통</td><td>가짜</td></tr><tr><td>before_2022-B0497</td><td>낮음</td><td>가짜</td></tr><tr><td>before_2022-B0114</td><td>낮음</td><td>가짜</td></tr><tr><td>before_2022-B0314</td><td>낮음</td><td>가짜</td></tr><tr><td>before_2022-B0253</td><td>높음</td><td>가짜</td></tr><tr><td>before_2022-B0677</td><td>높음</td><td>가짜</td></tr><tr><td>before_2022-B0232</td><td>높음</td><td>가짜</td></tr><tr><td>before_2022-B0693</td><td>높음</td><td>가짜</td></tr><tr><td>before_2022-B0694</td><td>낮음</td><td>가짜</td></tr><tr><td>before_2022-B0607</td><td>낮음</td><td>가짜</td></tr><tr><td>before_2022-B0715</td><td>낮음</td><td>가짜</td></tr><tr><td>before_2022-B0177</td><td>보통</td><td>가짜</td></tr><tr><td>before_2022-B0597</td><td>높음</td><td>가짜</td></tr><tr><td>before_2022-B0022</td><td>낮음</td><td>가짜</td></tr><tr><td>before_2022-B0112</td><td>보통</td><td>가짜</td></tr><tr><td>before_2022-B0596</td><td>낮음</td><td>가짜</td></tr><tr><td>before_2022-B0492</td><td>보통</td><td>가짜</td></tr><tr><td>before_2022-B0102</td><td>보통</td><td>가짜</td></tr></tbody></table>

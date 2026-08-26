@@ -1,0 +1,28 @@
+no	id	slot	대상	교사방향	모델방향	같은답	판정	메모
+1	motie_industrial_tech_guideline_pair:before_2022-B0043	0	적용 범위	다른 값	줄었다	12/14	모델	
+2	motie_industrial_tech_guideline_pair:before_2022-B0753	0	절차·요건	다른 값	늘었다	12/14	교사	
+3	motie_industrial_tech_guideline_pair:before_2022-B0220	0	적용 범위	줄었다	다른 값	11/14	모델	
+4	mof_rd_regulation_pair:before_2022-B0130	0	적용 범위	줄었다	다른 값	10/14	둘다틀림	적용범위??는 일단 아니고 대상이 더 적절한 듯. 그리고 바뀌었다가 맞는 듯
+5	motie_industrial_tech_guideline_pair:before_2022-B0401	0	적용 범위	다른 값	줄었다	6/14	모델	
+6	motie_industrial_tech_guideline_pair:before_2022-B0634	0	적용 범위	다른 값	늘었다	9/14	둘다	
+7	mof_rd_regulation_pair:before_2022-B0112	1	적용 범위	다른 값	늘었다	9/14	둘다틀림	이건 model negative로 잡아도 문제 없을 듯
+8	motie_industrial_tech_guideline_pair:before_2022-B0693	0	적용 범위	줄었다	다른 값	6/14	교사	
+9	mof_rd_regulation_pair:before_2022-B0250	1	절차·요건	늘었다	다른 값	5/14	둘다틀림	이것도 model negative 같음...
+10	mof_rd_regulation_pair:before_2022-B0173	0	절차·요건	다른 값	늘었다	4/14	둘다틀림	절차 요건이 아니고, 수행주체(과제담당관)가 수동적이게? 된 거니까 줄었다에 가까운 듯? 
+11	motie_industrial_tech_guideline_pair:before_2022-B0537	0	절차·요건	다른 값	늘었다	4/14	둘다틀림	말만 좀 바뀌었지 내용은 똑같은 것 같아
+12	motie_industrial_tech_guideline_pair:before_2022-B0527	0	적용 범위	늘었다	다른 값	3/14	둘다	
+13	mof_rd_regulation_pair:before_2022-B0112	2	절차·요건	다른 값	늘었다	3/14	교사	그리고 이거 복합수정인 것 같은데??
+14	mof_rd_regulation_pair:before_2022-B0174	1	절차·요건	늘었다	다른 값	3/14	교사	
+15	motie_industrial_tech_guideline_pair:before_2022-B0694	0	적용 범위	다른 값	늘었다	3/14	교사	
+16	mof_rd_regulation_pair:before_2022-B0125	0	절차·요건	늘었다	다른 값	2/14	교사	
+17	motie_industrial_tech_guideline_pair:before_2022-B0483	0	절차·요건	늘었다	다른 값	2/14	교사	
+18	motie_industrial_tech_guideline_pair:before_2022-B0188	1	절차·요건	늘었다	다른 값	2/14	교사	
+19	motie_industrial_tech_guideline_pair:before_2022-B0536	1	절차·요건	줄었다	다른 값	1/14	교사	
+20	motie_industrial_tech_guideline_pair:before_2022-B0748	0	적용 범위	늘었다	다른 값	1/14	교사	
+21	motie_industrial_tech_guideline_pair:before_2022-B0027	2	적용 범위	다른 값	늘었다	1/14	모델	
+22	motie_industrial_tech_guideline_pair:before_2022-B0203	0	적용 범위	다른 값	줄었다	1/14	둘다틀림	model negative 같은데...
+23	motie_industrial_tech_guideline_pair:before_2022-B0723	0	적용 범위	줄었다	다른 값	1/14	둘다틀림	모델 negative여도 될 것 같은데...
+24	motie_industrial_tech_guideline_pair:before_2022-B0639	1	적용 범위	늘었다	다른 값	1/14	교사	그거랑 별개로 갑 출력이 너무 안읽힌다...
+25	mof_rd_regulation_pair:before_2022-B0174	2	적용 범위	늘었다	다른 값	1/14	교사	추가로 복합수정인 것 같아 - 수행주체(연구개발기관의 장)의 책임범위가 늘었어
+26	motie_industrial_tech_guideline_pair:before_2022-B0747	1	적용 범위	늘었다	다른 값	1/14	교사	
+27	mof_rd_regulation_pair:before_2022-B0224	0	절차·요건	줄었다	다른 값	1/14	교사	

@@ -1,0 +1,63 @@
+<meta charset="utf-8"><title>대상별 방향 혼동표</title>
+<style>
+ body{font:14px/1.7 -apple-system,'Segoe UI',sans-serif;margin:2rem auto;max-width:1100px;padding:0 1rem;color:#111}
+ h1{font-size:1.4rem;margin:0 0 .3rem} h3{font-size:1rem;margin:1.6rem 0 .4rem}
+ small{font-weight:400;color:#666}
+ .head{background:#f6f7f9;border:1px solid #dde;border-radius:6px;padding:.9rem 1.1rem;margin:1rem 0 1.6rem}
+ .head dt{float:left;width:8.5rem;clear:left;color:#555;font-size:.86rem}
+ .head dd{margin:0 0 .35rem 8.5rem;font-size:.86rem}
+ .head code{background:#fff;border:1px solid #ddd;border-radius:3px;padding:.05rem .3rem;font-size:.82rem}
+ table{border-collapse:collapse;font-variant-numeric:tabular-nums}
+ th,td{border:1px solid #dcdfe4;padding:.3rem .5rem;text-align:right;font-size:.85rem}
+ thead th{background:#f2f4f7;font-weight:600;text-align:center}
+ th.r{text-align:left;background:#fafbfc;font-weight:600} th.c{text-align:left;background:#e8ebef}
+ td.ok{background:#eef7ee} td.mx{background:#fdf3e3} td.no{background:#f7f7f8;color:#888}
+ td.z{color:#ccc;text-align:center} .u{color:#888;font-size:.75rem;margin-left:.35rem}
+ .n{text-align:right}
+ .note{color:#555;font-size:.86rem;background:#fffbe9;border-left:3px solid #e2c86a;padding:.6rem .9rem;margin:1rem 0}
+</style>
+<h1>대상별 방향 혼동표</h1>
+<dl class="head">
+ <dt>가리려는 것</dt><dd>한 대상 안에서 <b>방향</b>이 어디로 새는가.
+   특히 <code>기한·시점</code>의 <code>늘었다</code> ↔ <code>다른 값</code></dd>
+ <dt>잰 것</dt><dd>delora-run2B, delora-s43-run2B, delora-s44-run2B, gralora-run2B, lily-run2B, lora-run2B, lora-s43-run2B, lora-s44-run2B, miss-run2B, miss-s43-run2B, miss-s44-run2B, peanut-run2B, pissa-run2B, rslora-run2B</dd>
+ <dt>채점 폴더</dt><dd><code>eval-mof-motie</code> · 홀드아웃 135건 · 실행 14개</dd>
+ <dt>분모</dt><dd><b>교사 라벨 항목</b>이 한 줄이다 (건이 아니다).
+   측정 2184 · 고유 378.
+   교사가 라벨을 안 단 건은 애초에 안 들어온다</dd>
+ <dt>깨진 출력</dt><dd>85건은 <code>출력 깨짐</code> 칸으로 <b>뺀 것이 아니라 넣었다</b>.
+   빼면 형식이 깨진 실험일수록 방향 정확도가 좋아 보인다</dd>
+ <dt>같은 대상 중복</dt><dd>18건. 첫 항목의 방향을 적었다</dd>
+ <dt>만든 날 · 명령</dt><dd>2026-08-25 · <code>python -m H_eval.cross_confusion --runs &#x27;runs/*-run2B&#x27; --out &#x27;H_eval/20260825__label_cross/교차혼동_B.html&#x27; --date 2026-08-25</code></dd>
+</dl>
+
+<div class="note"><b>큰 숫자가 측정, 옆의 작은 숫자가 고유다.</b>
+ 홀드아웃 135건을 실험 14개가 되풀이해 풀었으므로
+ <b>측정은 같은 자리를 여러 번 센 값이다.</b> 근거의 폭은 고유 쪽이다.</div>
+
+<h3>방향만 틀린 자리 — 큰 것부터</h3>
+<table><thead><tr><th class='c'>대상</th><th>교사</th><th>모델</th><th>측정</th><th>고유</th></tr></thead>
+<tbody><tr><td>적용 범위</td><td>늘었다</td><td>줄었다</td><td class='n'>32</td><td class='n'>6</td></tr><tr><td>적용 범위</td><td>줄었다</td><td>다른 값</td><td class='n'>31</td><td class='n'>5</td></tr><tr><td>적용 범위</td><td>다른 값</td><td>줄었다</td><td class='n'>31</td><td class='n'>5</td></tr><tr><td>적용 범위</td><td>다른 값</td><td>늘었다</td><td class='n'>24</td><td class='n'>5</td></tr><tr><td>적용 범위</td><td>줄었다</td><td>늘었다</td><td class='n'>23</td><td class='n'>4</td></tr><tr><td>절차·요건</td><td>다른 값</td><td>새로 생겼다</td><td class='n'>21</td><td class='n'>3</td></tr><tr><td>절차·요건</td><td>늘었다</td><td>다른 값</td><td class='n'>18</td><td class='n'>4</td></tr><tr><td>절차·요건</td><td>다른 값</td><td>늘었다</td><td class='n'>16</td><td class='n'>2</td></tr><tr><td>적용 범위</td><td>늘었다</td><td>새로 생겼다</td><td class='n'>14</td><td class='n'>2</td></tr><tr><td>기한·시점</td><td>새로 생겼다</td><td>다른 값</td><td class='n'>14</td><td class='n'>1</td></tr><tr><td>적용 범위</td><td>새로 생겼다</td><td>늘었다</td><td class='n'>13</td><td class='n'>2</td></tr><tr><td>기한·시점</td><td>다른 값</td><td>늘었다</td><td class='n'>13</td><td class='n'>1</td></tr></tbody></table>
+
+<section>
+<h3>적용 범위 <small>방향 맞힘 48.4% · 측정 812 · 고유 139</small></h3>
+<table><thead><tr><th class='c'>교사 \ 모델</th><th>늘었다</th><th>줄었다</th><th>다른 값</th><th>새로 생겼다</th><th>없어졌다</th><th>대상 못 맞힘</th><th>라벨 없음</th><th>출력 깨짐</th></tr></thead>
+<tbody><tr><th class='r'>늘었다</th><td class='ok'>241<span class='u'>27</span></td><td class='mx'>32<span class='u'>6</span></td><td class='mx'>11<span class='u'>3</span></td><td class='mx'>14<span class='u'>2</span></td><td class='z'>·</td><td class='no'>103<span class='u'>12</span></td><td class='no'>18<span class='u'>2</span></td><td class='no'>29<span class='u'>16</span></td></tr><tr><th class='r'>줄었다</th><td class='mx'>23<span class='u'>4</span></td><td class='ok'>85<span class='u'>12</span></td><td class='mx'>31<span class='u'>5</span></td><td class='z'>·</td><td class='z'>·</td><td class='no'>28<span class='u'>5</span></td><td class='no'>2<span class='u'>2</span></td><td class='no'>13<span class='u'>8</span></td></tr><tr><th class='r'>다른 값</th><td class='mx'>24<span class='u'>5</span></td><td class='mx'>31<span class='u'>5</span></td><td class='ok'>67<span class='u'>7</span></td><td class='z'>·</td><td class='z'>·</td><td class='no'>12<span class='u'>3</span></td><td class='z'>·</td><td class='no'>6<span class='u'>5</span></td></tr><tr><th class='r'>새로 생겼다</th><td class='mx'>13<span class='u'>2</span></td><td class='mx'>5<span class='u'>1</span></td><td class='z'>·</td><td class='z'>·</td><td class='z'>·</td><td class='no'>1<span class='u'>1</span></td><td class='z'>·</td><td class='no'>9<span class='u'>2</span></td></tr><tr><th class='r'>없어졌다</th><td class='mx'>4<span class='u'>1</span></td><td class='mx'>6<span class='u'>1</span></td><td class='z'>·</td><td class='z'>·</td><td class='z'>·</td><td class='no'>3<span class='u'>1</span></td><td class='z'>·</td><td class='no'>1<span class='u'>1</span></td></tr></tbody></table></section><section>
+<h3>절차·요건 <small>방향 맞힘 36.9% · 측정 518 · 고유 98</small></h3>
+<table><thead><tr><th class='c'>교사 \ 모델</th><th>늘었다</th><th>줄었다</th><th>다른 값</th><th>새로 생겼다</th><th>없어졌다</th><th>대상 못 맞힘</th><th>라벨 없음</th><th>출력 깨짐</th></tr></thead>
+<tbody><tr><th class='r'>늘었다</th><td class='ok'>5<span class='u'>1</span></td><td class='z'>·</td><td class='mx'>18<span class='u'>4</span></td><td class='mx'>4<span class='u'>2</span></td><td class='mx'>5<span class='u'>1</span></td><td class='no'>38<span class='u'>6</span></td><td class='no'>4<span class='u'>1</span></td><td class='no'>10<span class='u'>5</span></td></tr><tr><th class='r'>줄었다</th><td class='z'>·</td><td class='ok'>11<span class='u'>1</span></td><td class='mx'>2<span class='u'>1</span></td><td class='z'>·</td><td class='mx'>4<span class='u'>1</span></td><td class='no'>22<span class='u'>2</span></td><td class='z'>·</td><td class='no'>3<span class='u'>1</span></td></tr><tr><th class='r'>다른 값</th><td class='mx'>16<span class='u'>2</span></td><td class='mx'>1<span class='u'>1</span></td><td class='ok'>51<span class='u'>7</span></td><td class='mx'>21<span class='u'>3</span></td><td class='mx'>6<span class='u'>2</span></td><td class='no'>44<span class='u'>8</span></td><td class='no'>6<span class='u'>1</span></td><td class='no'>9<span class='u'>4</span></td></tr><tr><th class='r'>새로 생겼다</th><td class='z'>·</td><td class='mx'>1<span class='u'>1</span></td><td class='mx'>12<span class='u'>3</span></td><td class='ok'>92<span class='u'>10</span></td><td class='mx'>7<span class='u'>1</span></td><td class='no'>39<span class='u'>8</span></td><td class='z'>·</td><td class='no'>17<span class='u'>8</span></td></tr><tr><th class='r'>없어졌다</th><td class='z'>·</td><td class='mx'>1<span class='u'>1</span></td><td class='mx'>11<span class='u'>2</span></td><td class='z'>·</td><td class='ok'>32<span class='u'>4</span></td><td class='no'>21<span class='u'>4</span></td><td class='no'>1<span class='u'>1</span></td><td class='no'>4<span class='u'>1</span></td></tr></tbody></table></section><section>
+<h3>명칭 <small>방향 맞힘 28.6% · 측정 308 · 고유 50</small></h3>
+<table><thead><tr><th class='c'>교사 \ 모델</th><th>늘었다</th><th>줄었다</th><th>다른 값</th><th>새로 생겼다</th><th>없어졌다</th><th>대상 못 맞힘</th><th>라벨 없음</th><th>출력 깨짐</th></tr></thead>
+<tbody><tr><th class='r'>다른 값</th><td class='z'>·</td><td class='z'>·</td><td class='ok'>88<span class='u'>15</span></td><td class='mx'>1<span class='u'>1</span></td><td class='z'>·</td><td class='no'>138<span class='u'>18</span></td><td class='no'>72<span class='u'>9</span></td><td class='no'>9<span class='u'>7</span></td></tr></tbody></table></section><section>
+<h3>수행 주체 <small>방향 맞힘 48.6% · 측정 280 · 고유 45</small></h3>
+<table><thead><tr><th class='c'>교사 \ 모델</th><th>늘었다</th><th>줄었다</th><th>다른 값</th><th>새로 생겼다</th><th>없어졌다</th><th>대상 못 맞힘</th><th>라벨 없음</th><th>출력 깨짐</th></tr></thead>
+<tbody><tr><th class='r'>늘었다</th><td class='ok'>87<span class='u'>8</span></td><td class='z'>·</td><td class='mx'>6<span class='u'>2</span></td><td class='mx'>1<span class='u'>1</span></td><td class='z'>·</td><td class='no'>11<span class='u'>1</span></td><td class='z'>·</td><td class='no'>7<span class='u'>5</span></td></tr><tr><th class='r'>다른 값</th><td class='z'>·</td><td class='z'>·</td><td class='ok'>42<span class='u'>6</span></td><td class='z'>·</td><td class='z'>·</td><td class='no'>58<span class='u'>6</span></td><td class='no'>4<span class='u'>2</span></td><td class='no'>8<span class='u'>4</span></td></tr><tr><th class='r'>새로 생겼다</th><td class='mx'>2<span class='u'>1</span></td><td class='mx'>1<span class='u'>1</span></td><td class='mx'>9<span class='u'>2</span></td><td class='ok'>7<span class='u'>1</span></td><td class='z'>·</td><td class='no'>36<span class='u'>4</span></td><td class='z'>·</td><td class='no'>1<span class='u'>1</span></td></tr></tbody></table></section><section>
+<h3>수치·기준 <small>방향 맞힘 24.1% · 측정 112 · 고유 20</small></h3>
+<table><thead><tr><th class='c'>교사 \ 모델</th><th>늘었다</th><th>줄었다</th><th>다른 값</th><th>새로 생겼다</th><th>없어졌다</th><th>대상 못 맞힘</th><th>라벨 없음</th><th>출력 깨짐</th></tr></thead>
+<tbody><tr><th class='r'>줄었다</th><td class='z'>·</td><td class='z'>·</td><td class='mx'>3<span class='u'>1</span></td><td class='z'>·</td><td class='z'>·</td><td class='no'>9<span class='u'>1</span></td><td class='z'>·</td><td class='no'>2<span class='u'>1</span></td></tr><tr><th class='r'>다른 값</th><td class='mx'>8<span class='u'>1</span></td><td class='z'>·</td><td class='ok'>18<span class='u'>3</span></td><td class='z'>·</td><td class='z'>·</td><td class='no'>41<span class='u'>5</span></td><td class='z'>·</td><td class='no'>3<span class='u'>3</span></td></tr><tr><th class='r'>새로 생겼다</th><td class='z'>·</td><td class='z'>·</td><td class='z'>·</td><td class='ok'>3<span class='u'>1</span></td><td class='z'>·</td><td class='no'>4<span class='u'>1</span></td><td class='z'>·</td><td class='no'>7<span class='u'>1</span></td></tr><tr><th class='r'>없어졌다</th><td class='z'>·</td><td class='z'>·</td><td class='z'>·</td><td class='z'>·</td><td class='ok'>6<span class='u'>1</span></td><td class='no'>8<span class='u'>1</span></td><td class='z'>·</td><td class='z'>·</td></tr></tbody></table></section><section>
+<h3>기한·시점 <small>방향 맞힘 30.6% · 측정 98 · 고유 15</small></h3>
+<table><thead><tr><th class='c'>교사 \ 모델</th><th>늘었다</th><th>줄었다</th><th>다른 값</th><th>새로 생겼다</th><th>없어졌다</th><th>대상 못 맞힘</th><th>라벨 없음</th><th>출력 깨짐</th></tr></thead>
+<tbody><tr><th class='r'>다른 값</th><td class='mx'>13<span class='u'>1</span></td><td class='z'>·</td><td class='ok'>13<span class='u'>1</span></td><td class='mx'>7<span class='u'>1</span></td><td class='z'>·</td><td class='no'>18<span class='u'>2</span></td><td class='z'>·</td><td class='no'>5<span class='u'>4</span></td></tr><tr><th class='r'>새로 생겼다</th><td class='z'>·</td><td class='z'>·</td><td class='mx'>14<span class='u'>1</span></td><td class='ok'>17<span class='u'>2</span></td><td class='z'>·</td><td class='no'>10<span class='u'>2</span></td><td class='z'>·</td><td class='no'>1<span class='u'>1</span></td></tr></tbody></table></section><section>
+<h3>제출물·기재사항 <small>방향 맞힘 25.0% · 측정 56 · 고유 11</small></h3>
+<table><thead><tr><th class='c'>교사 \ 모델</th><th>늘었다</th><th>줄었다</th><th>다른 값</th><th>새로 생겼다</th><th>없어졌다</th><th>대상 못 맞힘</th><th>라벨 없음</th><th>출력 깨짐</th></tr></thead>
+<tbody><tr><th class='r'>늘었다</th><td class='ok'>1<span class='u'>1</span></td><td class='z'>·</td><td class='mx'>12<span class='u'>1</span></td><td class='z'>·</td><td class='z'>·</td><td class='z'>·</td><td class='z'>·</td><td class='no'>1<span class='u'>1</span></td></tr><tr><th class='r'>다른 값</th><td class='mx'>4<span class='u'>1</span></td><td class='z'>·</td><td class='ok'>13<span class='u'>1</span></td><td class='z'>·</td><td class='z'>·</td><td class='no'>17<span class='u'>2</span></td><td class='no'>4<span class='u'>1</span></td><td class='no'>4<span class='u'>3</span></td></tr></tbody></table></section>

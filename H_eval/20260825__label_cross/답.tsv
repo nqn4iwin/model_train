@@ -1,0 +1,10 @@
+no	id	slot	대상	교사방향	모델방향	같은답	판정	메모
+1	motie_industrial_tech_guideline_pair:before_2022-B0747	1	적용 범위	늘었다	줄었다	10/14	모델	
+2	mof_rd_regulation_pair:before_2022-B0138	0	적용 범위	줄었다	늘었다	10/14	교사	
+3	motie_industrial_tech_guideline_pair:before_2022-B0525	0	적용 범위	줄었다	늘었다	7/14	모델	
+4	motie_industrial_tech_guideline_pair:before_2022-B0527	0	적용 범위	늘었다	줄었다	5/14	둘다틀림	적용범위??는 일단 아니고 대상이 더 적절한 듯. 그리고 바뀌었다가 맞는 듯
+5	motie_industrial_tech_guideline_pair:before_2022-B0746	0	적용 범위	늘었다	줄었다	5/14	모델	
+6	motie_industrial_tech_guideline_pair:before_2022-B0639	1	적용 범위	늘었다	줄었다	3/14	둘다	
+7	motie_industrial_tech_guideline_pair:before_2022-B0748	0	적용 범위	늘었다	줄었다	2/14	둘다틀림	이건 model negative로 잡아도 문제 없을 듯
+8	motie_industrial_tech_guideline_pair:before_2022-B0347	0	적용 범위	늘었다	줄었다	1/14	교사	
+9	motie_industrial_tech_guideline_pair:before_2022-B0737	0	적용 범위	늘었다	줄었다	1/14	둘다틀림	

@@ -1,0 +1,858 @@
+<meta charset="utf-8"><title>라벨 방향 판정판</title>
+<style>
+ body{font:14px/1.7 -apple-system,'Segoe UI',sans-serif;margin:2rem auto;max-width:1000px;padding:0 1rem;color:#111}
+ h1{font-size:1.4rem;margin:0 0 .3rem} h3{font-size:.95rem;margin:0 0 .7rem}
+ small{font-weight:400;color:#666}
+ .head{background:#f6f7f9;border:1px solid #dde;border-radius:6px;padding:.9rem 1.1rem;margin:1rem 0}
+ .head dt{float:left;width:8.5rem;clear:left;color:#555;font-size:.86rem}
+ .head dd{margin:0 0 .35rem 8.5rem;font-size:.86rem}
+ code{background:#fff;border:1px solid #ddd;border-radius:3px;padding:.05rem .3rem;font-size:.82rem}
+ .rule{background:#fffbe9;border-left:3px solid #e2c86a;padding:.6rem .9rem;margin:1rem 0;font-size:.88rem}
+ .card{border:1px solid #dcdfe4;border-radius:8px;padding:1rem 1.2rem;margin:1.4rem 0}
+ .card.done{background:#f6faf6;border-color:#bcd8bc}
+ .diff{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-bottom:.9rem}
+ .diff>div{background:#fafbfc;border:1px solid #e6e8ec;border-radius:5px;padding:.6rem .8rem;
+   font-size:.84rem;max-height:15rem;overflow:auto;white-space:pre-wrap;word-break:break-all}
+ del{background:#ffe1e1;text-decoration:line-through} ins{background:#dcf3dc;text-decoration:none}
+ .lab{color:#777;font-size:.75rem;letter-spacing:.03em;margin:.5rem 0 .15rem}
+ .sides{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
+ .side{border:1px solid #e0e3e8;border-radius:5px;padding:.6rem .8rem;background:#fff}
+ .tag{font-weight:700;font-size:1rem} .dir{font-size:1.05rem;font-weight:600;color:#2a4d8f}
+ .txt{font-size:.84rem;white-space:pre-wrap}
+ .ask{margin-top:.9rem;display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+ .ask button{padding:.35rem .8rem;font-size:.85rem;border:1px solid #c8ccd3;border-radius:5px;
+   background:#fff;cursor:pointer}
+ .ask button.on{background:#2a4d8f;color:#fff;border-color:#2a4d8f}
+ .memo{flex:1;min-width:14rem;padding:.35rem .5rem;font-size:.85rem;border:1px solid #d5d8dd;border-radius:5px}
+ #bar{position:sticky;top:0;background:#fff;border-bottom:1px solid #dde;padding:.6rem 0;z-index:9}
+ #bar button{padding:.3rem .7rem;font-size:.85rem;margin-right:.3rem}
+ textarea{width:100%;height:8rem;font:12px/1.5 ui-monospace,monospace;margin-top:.5rem}
+</style>
+<h1>라벨 방향 판정판</h1>
+<dl class="head">
+ <dt>가리려는 것</dt><dd>방향이 어긋난 자리에서 <b>누가 맞나</b>.
+   교사냐 · 모델이냐 · 둘 다 말이 되냐</dd>
+ <dt>본 칸</dt><dd><code>적용 범위:다른 값:늘었다</code> · <code>적용 범위:늘었다:다른 값</code> · <code>적용 범위:다른 값:줄었다</code> · <code>적용 범위:줄었다:다른 값</code> · <code>절차·요건:다른 값:늘었다</code> · <code>절차·요건:늘었다:다른 값</code> · <code>절차·요건:다른 값:줄었다</code> · <code>절차·요건:줄었다:다른 값</code></dd>
+ <dt>잰 것</dt><dd>delora-run2A, delora-s43-run2A, delora-s44-run2A, gralora-run2A, lily-run2A, lora-run2A, lora-s43-run2A, lora-s44-run2A, miss-run2A, miss-s43-run2A, miss-s44-run2A, peanut-run2A, pissa-run2A, rslora-run2A</dd>
+ <dt>채점 폴더</dt><dd><code>eval-mof-motie</code> · 홀드아웃 <code>data/20260821__annotate__v2.2-run2A/holdout.jsonl</code></dd>
+ <dt>분모</dt><dd><b>고유 27자리.</b> 열쇠는 (건 id, 교사 라벨 순번)이다.
+   같은 자리를 여러 실험이 푼 것은 한 장으로 묶고, 몇 개가 같은 답을 냈는지만 적었다.
+   모델 쪽은 <b>제일 많이 나온 방향</b> 하나를 대표로 세웠다</dd>
+ <dt>눈가림</dt><dd>갑·을 자리를 건마다 섞었고 <code>근거</code>의 <code>이전:</code>·
+   <code>이후:</code> 말머리를 뗐다. <b>문투로 새어나갈 수 있다</b> — 그럴 때는 알고 보되
+   판단은 조문에서 한다</dd>
+ <dt>만든 날 · 명령</dt><dd>2026-08-25 · <code>python -m H_eval.label_review --cell &#x27;적용 범위:다른 값:늘었다&#x27; --cell &#x27;적용 범위:늘었다:다른 값&#x27; --cell &#x27;적용 범위:다른 값:줄었다&#x27; --cell &#x27;적용 범위:줄었다:다른 값&#x27; --cell &#x27;절차·요건:다른 값:늘었다&#x27; --cell &#x27;절차·요건:늘었다:다른 값&#x27; --cell &#x27;절차·요건:다른 값:줄었다&#x27; --cell &#x27;절차·요건:줄었다:다른 값&#x27; --out &#x27;H_eval/20260825__label_cross/판정판_경계.html&#x27; --date 2026-08-25</code></dd>
+</dl>
+
+<div class="rule"><b>답이 뜻하는 것.</b>
+ <b>교사가 맞다</b> → 모델 잘못이다. 자는 그대로 둔다 ·
+ <b>모델이 맞다</b> → <b>교사 라벨이 틀렸다.</b> <code>data_collect</code>로 넘긴다 ·
+ <b>둘 다 말이 된다</b> → 경계가 흐리다. <b>여기가 등가표의 근거다</b> ·
+ <b>둘 다 틀렸다</b> → 조문을 아무도 못 읽었다<br>
+ <b>「적용 범위」의 늘었다 ↔ 줄었다는 정반대로 읽은 것이라 등가표로 접으면 안 된다.</b>
+ 여기서 「둘 다 말이 된다」가 많이 나오면 그건 등가표가 아니라
+ <b>규칙서에서 그 칸의 뜻이 흐리다</b>는 뜻이다.</div>
+
+<div id="bar">
+ <b id="cnt">0/27</b>
+ <button id="tsv">TSV</button><button id="json">JSON</button>
+ <button id="save">파일로 저장</button><button id="reset">초기화</button>
+ <span style="color:#a33;font-size:.82rem">끝나면 반드시 「파일로 저장」</span>
+ <textarea id="out" readonly></textarea>
+</div>
+
+<article class="card" data-i="1" data-id="motie_industrial_tech_guideline_pair:before_2022-B0043"
+  data-slot="0" data-a="teacher" data-target="적용 범위"
+  data-teacher="다른 값" data-model="줄었다"
+  data-votes="12" data-runs="14">
+ <h3>1. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0043 · 라벨 1번째 ·
+   <b>12/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>19. &quot;정책지정&quot;이라 함은 <del>신속한</del> <del>추진이</del> <del>필요</del>하<del>거</del>나 <del>대외 비공개 필요성, 기타 산업정책상 필요</del>하<del>다고 판단하여</del> 연구개발과제와 그 연구개발기관(필요시 경쟁형 방식이나 복수지원 방식 또는 제한모집 방식으로 추진 가능)을 제5조의 사업별 심의위원회에서 확정하는 방식을 말한다.</div>
+   <div><div class="lab">개정 후</div>19. &quot;정책지정&quot;이라 함은 <ins>국연법</ins> <ins>제9조제4항</ins> <ins>각 호의 어느 </ins>하나<ins>에</ins> <ins>해당</ins>하<ins>는</ins> 연구개발과제와 그 연구개발기관(필요시 경쟁형 방식이나 복수지원 방식 또는 제한모집 방식으로 추진 가능)을 제5조의 사업별 심의위원회에서 확정하는 방식을 말한다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">신속한 추진이 필요하거나 대외 비공개 필요성, 기타 산업정책상 필요하다고 판단하여 → 국연법 제9조제4항 각 호의 어느 하나에 해당하는</div>
+  <div class="lab">direct_impact</div><div class="txt">정책지정 대상이 되는 연구개발과제의 요건이 신속한 추진 필요성, 대외 비공개 필요성, 산업정책상 필요성 등 정책적 판단에서 국연법 제9조제4항 각 호의 어느 하나에 해당하는지로 바뀌었으며, 이에 따라 제5조의 사업별 심의위원회가 정책지정 여부를 확정하는 기준도 정책적 필요성 판단에서 법정 각 호 해당 여부 확인으로 변경되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">신속한 추진이 필요하거나 대외 비공개 필요성, 기타 산업정책상 필요하다고 판단하여 → 국연법 제9조제4항 각 호의 어느 하나에 해당하는</div>
+  <div class="lab">direct_impact</div><div class="txt">정책지정 대상이 되는 연구개발과제의 요건이 ‘신속한 추진이 필요하거나 대외 비공개 필요성, 기타 산업정책상 필요하다고 판단하여’에서 ‘국연법 제9조제4항 각 호의 어느 하나에 해당하는’으로 변경되어, 해당 요건에 해당하지 않는 과제는 정책지정 대상에서 제외된다. 이에 따라 제5조의 사업별 심의위원회는 종전보다 국연법 제9조제4항 각 호의 해당 여부라는 구체적인 기준에 따라 과제를 정책지정하게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="2" data-id="motie_industrial_tech_guideline_pair:before_2022-B0753"
+  data-slot="0" data-a="model" data-target="절차·요건"
+  data-teacher="다른 값" data-model="늘었다"
+  data-votes="12" data-runs="14">
+ <h3>2. 절차·요건
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0753 · 라벨 1번째 ·
+   <b>12/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>⑤ 장관이 관계 중앙행정기관 또는 관련기관으로부터 참여제한 사실을 통보받은 때에는 그 참여제한 자에 대해 이 요령에 따른 사업의 참여를 제한<del>할</del> <del>수 있</del>다.</div>
+   <div><div class="lab">개정 후</div>⑤ 장관이 관계 중앙행정기관 또는 관련기관으로부터 참여제한 사실을 통보받은 때에는 그 참여제한 자에 대해 이 요령에 따른 사업의 참여를 제한<ins>하여야</ins> <ins>한</ins>다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">이 요령에 따른 사업의 참여를 제한할 수 있다 → 이 요령에 따른 사업의 참여를 제한하여야 한다</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 참여제한 사실을 통보받은 경우 사업의 참여를 제한할 수 있던 재량이 없어지고, 참여를 제한하여야 하는 의무로 바뀌었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">제한할 수 있다 → 제한하여야 한다</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 관계 중앙행정기관 또는 관련기관으로부터 참여제한 사실을 통보받은 경우, 이전에는 사업 참여를 제한할 수 있는 재량이 있었으나 개정 후에는 반드시 참여를 제한하여야 하는 의무를 지게 되었다. 참여제한 자는 장관의 재량에 따라 사업 참여가 허용될 가능성이 없어지고, 통보받은 경우 이 요령에 따른 사업의 참여가 반드시 제한되게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="3" data-id="motie_industrial_tech_guideline_pair:before_2022-B0220"
+  data-slot="0" data-a="model" data-target="적용 범위"
+  data-teacher="줄었다" data-model="다른 값"
+  data-votes="11" data-runs="14">
+ <h3>3. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0220 · 라벨 1번째 ·
+   <b>11/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>11. <del>사</del>업<del> </del>종합<del>지원</del>정보시스템 구축ㆍ운영에 관한 사항</div>
+   <div><div class="lab">개정 후</div>11. <ins>산</ins>업<ins>기술R&amp;D</ins>종합정보시스템<ins>의</ins> 구축ㆍ운영에 관한 사항</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">사업 종합지원정보시스템 → 산업기술R&amp;D종합정보시스템</div>
+  <div class="lab">direct_impact</div><div class="txt">이 개정으로 사업 종합지원정보시스템의 구축·운영에 관한 사항이 산업기술R&amp;D종합정보시스템의 구축·운영에 관한 사항으로 변경되어, 해당 시스템을 구축·운영하는 자는 적용 대상이 달라지고, 시스템을 이용하는 자는 이용 대상이 달라지는 등 적용 범위와 관련된 사항이 변경되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">사업 종합지원정보시스템 → 산업기술R&amp;D종합정보시스템</div>
+  <div class="lab">direct_impact</div><div class="txt">개정 후 구축ㆍ운영 대상이 사업 종합지원정보시스템에서 산업기술R&amp;D종합정보시스템으로 바뀌어, 구축ㆍ운영 주체는 시스템 구축ㆍ운영 범위와 내용을 산업기술R&amp;D 지원에 맞게 변경해야 하고, 이용자는 사업 종합지원 대신 산업기술R&amp;D 관련 정보를 제공하는 시스템을 이용하게 된다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="4" data-id="mof_rd_regulation_pair:before_2022-B0130"
+  data-slot="0" data-a="model" data-target="적용 범위"
+  data-teacher="줄었다" data-model="다른 값"
+  data-votes="10" data-runs="14">
+ <h3>4. 적용 범위
+   <small>mof_rd_regulation_pair:before_2022-B0130 · 라벨 1번째 ·
+   <b>10/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div><del>⑥</del> 전문기관의 장은 제<del>5</del>항에 따라 접수된 연구개발계획서의 <del>보완이</del> <del>필요</del>한 <del>경우에는</del> 일정기간을 정하여 보완을 요구할 수 있다.</div>
+   <div><div class="lab">개정 후</div><ins>⑧</ins> 전문기관의 장은 제<ins>7</ins>항에 따라 접수된 연구개발계획서의 <ins>적합성을</ins> <ins>검토하여 공고내용과 적합</ins>한 <ins>적합한 연구개발계획서를 대상으로</ins> 일정기간을 정하여 보완을 요구할 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">제5항 → 제7항</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 연구개발계획서의 보완을 요구할 수 있는 대상이 제5항 접수서에서 제7항 접수서로 변경되었으며, 보완 요구의 전제 조건도 &#x27;보완이 필요한 경우&#x27;에서 &#x27;적합성을 검토하여 공고내용과 적합한 적합한 연구개발계획서를 대상으로&#x27;로 바뀌었다. 이에 따라 연구개발계획서를 접수하는 쪽도 보완 요구를 받을 수 있는 서류의 근거 조항이 제5항에서 제7항으로, 보완 요구의 전제 조건이 보완 필요성 판단에서 공고내용과의 적합성 검토로 변경된 점을 적용받게 된다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">보완이 필요한 경우에는 → 적합성을 검토하여 공고내용과 적합한 적합한 연구개발계획서를 대상으로</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 이제 연구개발계획서의 적합성을 검토한 후 공고내용에 적합한 계획서에 대해서만 보완을 요구할 수 있게 되었고, 이에 따라 연구개발계획서 제출자는 적합하지 않은 계획서의 경우 보완 요구를 받지 않을 수 있게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="5" data-id="motie_industrial_tech_guideline_pair:before_2022-B0401"
+  data-slot="0" data-a="teacher" data-target="적용 범위"
+  data-teacher="다른 값" data-model="줄었다"
+  data-votes="6" data-runs="14">
+ <h3>5. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0401 · 라벨 1번째 ·
+   <b>6/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>② 장관은 연구개발비의 일부를 정부지원연구개발비로 지원할 경우 아래 표와 같이 연구개발기관 유형 및 연구개발과제 유형에 따라 정부지원연구개발비를 차등 지원할 수 있다. 단, <del>수요기업으로</del> <del>참여하는</del> <del>공동</del>연구개발기관<del>과 공고 시 정한 소재ㆍ부품ㆍ장비산업 경쟁력강화를 위한 특별조치법 제12조</del>에 <del>의한 핵심전략기술 관련 기술개발에 참여하</del>는<del> 기업은</del> 기업 유형에 관계없이 중소기업 수준으로 정부지원연구개발비를 지원할 수 있다.</div>
+   <div><div class="lab">개정 후</div>② 장관은 연구개발비의 일부를 정부지원연구개발비로 지원할 경우 아래 표와 같이 연구개발기관 유형 및 연구개발과제 유형에 따라 정부지원연구개발비를 차등 지원할 수 있다. 단, <ins>다음</ins> <ins>각</ins> <ins>호의 </ins>연구개발기관에 <ins>대해서</ins>는 기업 유형에 관계없이 중소기업 수준으로 정부지원연구개발비를 지원할 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">단, 수요기업으로 참여하는 공동연구개발기관과 공고 시 정한 소재ㆍ부품ㆍ장비산업 경쟁력강화를 위한 특별조치법 제12조에 의한 핵심전략기술 관련 기술개발에 참여하는 기업은 → 단, 다음 각 호의 연구개발기관에 대해서는</div>
+  <div class="lab">direct_impact</div><div class="txt">이전에는 수요기업으로 참여하는 공동연구개발기관과 소재ㆍ부품ㆍ장비산업 경쟁력강화를 위한 특별조치법 제12조에 따른 핵심전략기술 관련 기술개발에 참여하는 기업이 명시적으로 중소기업 수준의 정부지원연구개발비 지원 대상이었으나, 개정 후에는 각 호의 연구개발기관으로 대상이 변경되어, 해당 기관들은 각 호에 포함되는지 여부에 따라 지원 여부가 결정되고, 각 호에 새로 포함된 연구개발기관은 중소기업 수준 지원을 받을 수 있게 됨</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">수요기업으로 참여하는 공동연구개발기관과 공고 시 정한 소재ㆍ부품ㆍ장비산업 경쟁력강화를 위한 특별조치법 제12조에 의한 핵심전략기술 관련 기술개발에 참여하는 기업은 → 다음 각 호의 연구개발기관에 대해서는</div>
+  <div class="lab">direct_impact</div><div class="txt">개정 전에는 수요기업으로 참여하는 공동연구개발기관과 공고 시 소재ㆍ부품ㆍ장비산업 경쟁력강화를 위한 특별조치법 제12조에 의한 핵심전략기술 관련 기술개발에 참여하는 기업은 기업 유형에 관계없이 중소기업 수준으로 정부지원연구개발비를 지원받을 수 있었으나, 개정 후에는 다음 각 호의 연구개발기관에 해당하는 경우에만 기업 유형에 관계없이 중소기업 수준으로 정부지원연구개발비를 지원받을 수 있게 되어 지원 대상이 특정 사례로 축소되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="6" data-id="motie_industrial_tech_guideline_pair:before_2022-B0634"
+  data-slot="0" data-a="teacher" data-target="적용 범위"
+  data-teacher="다른 값" data-model="늘었다"
+  data-votes="9" data-runs="14">
+ <h3>6. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0634 · 라벨 1번째 ·
+   <b>9/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>3. <del>제1항 및 제2항에 따라</del> 연구개발<del>성과를 소유하게 될 </del>기관이 국외에 <del>있는</del> 경우</div>
+   <div><div class="lab">개정 후</div>3. <ins>해당</ins> 연구개발기관이 국외에 <ins>소재한</ins> 경우</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">제1항 및 제2항에 따라 연구개발성과를 소유하게 될 기관이 국외에 있는 경우 → 해당 연구개발기관이 국외에 소재한 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">연구개발기관은 이 조항이 적용되는 기준이 &#x27;제1항 및 제2항에 따라 연구개발성과를 소유하게 될 기관&#x27;에서 &#x27;해당 연구개발기관&#x27;으로 변경되어, 국외에 소재한 경우 이 조건의 적용을 받는 범위가 달라졌다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">제1항 및 제2항에 따라 연구개발성과를 소유하게 될 기관이 국외에 있는 경우 → 해당 연구개발기관이 국외에 소재한 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">이 개정으로 국외에 소재한 연구개발기관이 이 조항의 적용 대상이 되는 범위가 제1항 및 제2항에 따라 성과 소유 기관이었던 것에서 해당 기관 자체로 넓어졌다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="7" data-id="mof_rd_regulation_pair:before_2022-B0112"
+  data-slot="1" data-a="teacher" data-target="적용 범위"
+  data-teacher="다른 값" data-model="늘었다"
+  data-votes="9" data-runs="14">
+ <h3>7. 적용 범위
+   <small>mof_rd_regulation_pair:before_2022-B0112 · 라벨 2번째 ·
+   <b>9/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>④ 전문기관의 장은 기획연구<del>대상</del> <del>선정</del> 등을 위해 필요한 경우 관련 전문가<del>로</del> <del>구성된</del> <del>자문단을</del> 운영할 수 있다.</div>
+   <div><div class="lab">개정 후</div>④ 전문<ins>기관 및 자체 기획연구를 수행하는 </ins>기관의 장은 기획연구<ins>의</ins> <ins>수행</ins> 등을 위해 필요한 경우 관련 전문가<ins>를</ins> <ins>포함한</ins> <ins>기획위원회를</ins> 운영할 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">기획연구대상 선정 등을 위해 → 기획연구의 수행 등을 위해</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 이제 기획연구대상 선정뿐 아니라 기획연구 수행을 위해서도 기획위원회를 운영할 수 있게 되었고, 자체 기획연구를 수행하는 기관의 장도 새롭게 기획연구 수행을 위해 기획위원회를 운영할 수 있게 되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">기획연구 대상 선정 등을 위해 필요한 경우 관련 전문가로 구성된 자문단 → 기획연구의 수행 등을 위해 필요한 경우 관련 전문가를 포함한 기획위원회</div>
+  <div class="lab">direct_impact</div><div class="txt">자체 기획연구를 수행하는 기관의 장은 기획연구 수행 등을 위해 필요한 경우 관련 전문가를 포함한 기획위원회를 운영할 수 있게 되었고, 전문기관의 장은 기존 자문단 운영 권한에 더해 기획위원회 운영 권한도 새로 갖게 되었다. 관련 전문가는 자문단 구성 시에만 참여하던 것에서 기획위원회 구성원으로도 참여할 수 있게 되어 참여 기회가 확대되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="8" data-id="motie_industrial_tech_guideline_pair:before_2022-B0693"
+  data-slot="0" data-a="model" data-target="적용 범위"
+  data-teacher="줄었다" data-model="다른 값"
+  data-votes="6" data-runs="14">
+ <h3>8. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0693 · 라벨 1번째 ·
+   <b>6/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>① 장관은 전문기관이 기술료요령 제5조의 징수 대상 기관 또는 그 밖에 사업수행결과를 실시하고자 하는 자로부터 기술료를 징수하도록 할 수 있다.</div>
+   <div><div class="lab">개정 후</div><ins>제39조(기술료ㆍ정부납부기술료의 징수 및 관리) </ins>① 장관은 전문기관이 기술료요령 제5조의 징수 대상 기관 또는 그 밖에 사업수행결과를 실시하고자 하는 자로부터 <ins>정부납부</ins>기술료를 징수하도록 할 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">기술료 → 정부납부기술료</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 전문기관이 징수하도록 할 수 있는 대상의 명칭이 &#x27;기술료&#x27;에서 &#x27;정부납부기술료&#x27;로 변경되어 징수 권한의 적용 대상이 구체화되거나 명칭이 달라졌고, 전문기관은 징수 대상 금액의 명칭이 &#x27;기술료&#x27;에서 &#x27;정부납부기술료&#x27;로 변경되어 징수하는 금액의 성격이 달라졌으며, 사업수행결과를 실시하고자 하는 자는 납부 대상 금액의 명칭이 &#x27;기술료&#x27;에서 &#x27;정부납부기술료&#x27;로 변경되어 납부해야 하는 금액의 성격이 달라졌다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">기술료 → 정부납부기술료</div>
+  <div class="lab">direct_impact</div><div class="txt">이 개정으로 장관이 전문기관을 통해 징수할 수 있는 기술료가 정부납부기술료로 제한되어, 장관의 징수 권한 범위가 축소되고, 전문기관의 징수 대상도 정부납부기술료로 축소되며, 징수 대상 기관 또는 사업수행결과 실시자는 납부해야 하는 기술료가 정부납부기술료로 한정될 수 있게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="9" data-id="mof_rd_regulation_pair:before_2022-B0250"
+  data-slot="1" data-a="model" data-target="절차·요건"
+  data-teacher="늘었다" data-model="다른 값"
+  data-votes="5" data-runs="14">
+ <h3>9. 절차·요건
+   <small>mof_rd_regulation_pair:before_2022-B0250 · 라벨 2번째 ·
+   <b>5/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div><del>제42조(참여제한 조치 및 사업비 환수) ①</del> 장관은 환수 통지를 받은 연구개발기관<del>의</del> 부도, 법정관리, 폐업 <del>또는</del> 이에 준하는 상황이 발생하여 환수가 불가능하다고 판단되<del>는</del> <del>경우 사업비 환</del>수<del> 조치</del>를 종료할 수 있다.</div>
+   <div><div class="lab">개정 후</div><ins>④</ins> 장관은<ins> 제재부가금 또는 연구개발비</ins> 환수 통지를 받은 연구개발기관<ins> 또는 연구자가</ins> 부도, 법정관리, 폐업<ins>,</ins> <ins>파산하거나</ins> 이에 준하는 상황이 발생하여 환수가 불가능하다고 판단되<ins>면</ins> <ins>징</ins>수<ins>절차</ins>를 종료할 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">부도, 법정관리, 폐업 또는 이에 준하는 상황이 발생하여 환수가 불가능하다고 판단되는 경우 → 부도, 법정관리, 폐업, 파산하거나 이에 준하는 상황이 발생하여 환수가 불가능하다고 판단되면</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 징수절차를 종료할 수 있는 대상이 사업비 환수 통지를 받은 연구개발기관에서 제재부가금 또는 연구개발비 환수 통지를 받은 연구개발기관 또는 연구자로 넓어졌고, 환수가 불가능한 경우 사업비 환수 조치만 종료하던 것에서 징수절차 전체를 종료할 수 있게 되었다. 이에 따라 연구개발기관과 연구자는 부도·법정관리·폐업·파산 등으로 환수가 불가능하다고 판단될 때 사업비 환수 조치뿐 아니라 징수절차 전체가 종료될 수 있게 되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">부도, 법정관리, 폐업 또는 이에 준하는 상황 → 부도, 법정관리, 폐업, 파산하거나 이에 준하는 상황</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 제재부가금 또는 연구개발비 환수 통지를 받은 연구개발기관이나 연구자가 부도·법정관리·폐업·파산 등으로 환수가 불가능하다고 판단되면 징수절차를 종료할 수 있게 되었고, 이에 따라 연구개발기관과 연구자는 환수 불가능 상황에서 징수절차 종료를 적용받을 수 있는 범위가 넓어졌으며 파산이 명시적 사유로 추가되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="10" data-id="mof_rd_regulation_pair:before_2022-B0173"
+  data-slot="0" data-a="model" data-target="절차·요건"
+  data-teacher="다른 값" data-model="늘었다"
+  data-votes="4" data-runs="14">
+ <h3>10. 절차·요건
+   <small>mof_rd_regulation_pair:before_2022-B0173 · 라벨 1번째 ·
+   <b>4/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>② 전문기관의 장은 제1항의 진도관리를 위해 필요한 경우 현장점검 등을 실시할 수 있으며, 이 경우 과제담당관<del>이 현장점검에</del> 참<del>석할</del> 수 있다.</div>
+   <div><div class="lab">개정 후</div>② 전문기관의 장은 제1항의 진도관리를 위해 필요한 경우 현장점검 등을 실시할 수 있으며, 이 경우 과제담당관<ins>을</ins> 참<ins>여시킬</ins> 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">과제담당관이 현장점검에 참석할 수 있다 → 과제담당관을 참여시킬 수 있다</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 현장점검 등에 과제담당관을 &#x27;참석&#x27;시키는 것에서 &#x27;참여&#x27;시키는 것으로 참여 방식이 바뀌어 참여시킬 수 있는 절차나 범위가 달라졌을 수 있으며, 과제담당관은 현장점검에 &#x27;참석&#x27;할 수 있던 것에서 &#x27;참여&#x27;될 수 있게 되어 참여 형태나 범위가 달라졌을 수 있다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">과제담당관이 현장점검에 참석할 수 있다 → 과제담당관을 참여시킬 수 있다</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 현장점검 시 과제담당관을 참여시킬 수 있게 되어 과제담당관의 관여 방식을 결정할 수 있는 권한이 생겼고, 과제담당관은 종전처럼 현장점검에 참석할 수 있는 것에서 전문기관의 장에 의해 참여 대상이 될 수 있는 것으로 바뀌어 참석의 자율성이 줄고 지시에 따른 참여 가능성이 생겼다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="11" data-id="motie_industrial_tech_guideline_pair:before_2022-B0537"
+  data-slot="0" data-a="model" data-target="절차·요건"
+  data-teacher="다른 값" data-model="늘었다"
+  data-votes="4" data-runs="14">
+ <h3>11. 절차·요건
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0537 · 라벨 1번째 ·
+   <b>4/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>⑤ 제3항에 해당하는 사유가 해소 불가능하거나 2개월 내에 해소되지 않은 경우 전문기관은 특별평가를 <del>통</del>하여 연구개발과제 <del>중</del>단<del>을</del> <del>결정</del>한다.</div>
+   <div><div class="lab">개정 후</div>⑤ 제3항에 해당하는 사유가 해소 불가능하거나 2개월 내에 해소되지 않은 경우 전문기관은 특별평가를 <ins>개최</ins>하여<ins>야 하며, 평가단으로 하여금</ins> 연구개발과제<ins>를</ins> <ins>계속하여 수행하는 것이 불가능하다고 판</ins>단<ins>되는지를</ins> <ins>검토하게 하여야 </ins>한다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">특별평가를 통하여 연구개발과제 중단을 결정한다 → 특별평가를 개최하여야 하며, 평가단으로 하여금 연구개발과제를 계속하여 수행하는 것이 불가능하다고 판단인지를 검토하게 하여야 한다.</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관은 연구개발과제 중단을 결정하기 위해 특별평가를 개최하는 것만으로는 부족하고, 평가단으로 하여금 계속 수행을 불가능하다고 판단하는지를 검토하게 해야 하는 의무가 추가되었으며, 평가단은 특별평가 개최 시 과제 계속 수행 불가능 여부를 판단하도록 지시받는 역할을 맡게 되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">특별평가를 통하여 연구개발과제 중단을 결정한다 → 특별평가를 개최하여야 하며, 평가단으로 하여금 연구개발과제를 계속하여 수행하는 것이 불가능하다고 판단되는지를 검토하게 하여야 한다</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관은 종전에는 특별평가를 통하여 연구개발과제 중단을 결정하였으나, 개정 후에는 특별평가를 개최하여야 하고 평가단으로 하여금 연구개발과제를 계속하여 수행하는 것이 불가능하다고 판단되는지를 검토하게 하여야 한다. 이에 따라 전문기관의 직접적인 중단 결정 대신 평가단의 검토를 거치는 구조로 절차가 변경되었으며, 평가단은 개정 전 조항에는 없던 주체로서 과제 계속 수행 불가능 여부를 검토하는 역할을 새로 맡게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="12" data-id="motie_industrial_tech_guideline_pair:before_2022-B0527"
+  data-slot="0" data-a="teacher" data-target="적용 범위"
+  data-teacher="늘었다" data-model="다른 값"
+  data-votes="3" data-runs="14">
+ <h3>12. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0527 · 라벨 1번째 ·
+   <b>3/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>16. 연구책임자가 다른 연구개발과제 수행과정에서 제<del>44</del>조에 따라<del> 연구개발비의 용도 외 사용으로</del> 참여제한이 확정된 경우</div>
+   <div><div class="lab">개정 후</div>16. 연구책임자가 다른 연구개발과제 수행과정에서 <ins>국연법 </ins>제<ins>32</ins>조에 따라 참여제한이 확정된 경우</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">연구개발비의 용도 외 사용으로 참여제한이 확정된 경우 → 참여제한이 확정된 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">연구책임자는 다른 연구개발과제 수행과정에서 국연법 제32조에 따라 참여제한이 확정되기만 하면 이 조항의 요건을 충족하게 되었으며, 이전에는 제44조에 따른 연구개발비 용도 외 사용으로 참여제한이 확정된 경우로 한정되어 있었다</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">제44조 → 국연법 제32조</div>
+  <div class="lab">direct_impact</div><div class="txt">연구책임자는 참여제한 확인의 근거가 제44조에서 국연법 제32조로 변경되었으며, 참여제한이 확정된 경우라는 조건도 동일하게 유지되지만 확인 기준이나 적용 범위가 달라질 수 있다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="13" data-id="mof_rd_regulation_pair:before_2022-B0112"
+  data-slot="2" data-a="model" data-target="절차·요건"
+  data-teacher="다른 값" data-model="늘었다"
+  data-votes="3" data-runs="14">
+ <h3>13. 절차·요건
+   <small>mof_rd_regulation_pair:before_2022-B0112 · 라벨 3번째 ·
+   <b>3/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>④ 전문기관의 장은 기획연구<del>대상</del> <del>선정</del> 등을 위해 필요한 경우 관련 전문가<del>로</del> <del>구성된</del> <del>자문단을</del> 운영할 수 있다.</div>
+   <div><div class="lab">개정 후</div>④ 전문<ins>기관 및 자체 기획연구를 수행하는 </ins>기관의 장은 기획연구<ins>의</ins> <ins>수행</ins> 등을 위해 필요한 경우 관련 전문가<ins>를</ins> <ins>포함한</ins> <ins>기획위원회를</ins> 운영할 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">관련 전문가로 구성된 자문단 → 관련 전문가를 포함한 기획위원회 (구성 요건 추가)</div>
+  <div class="lab">direct_impact</div><div class="txt">자체 기획연구를 수행하는 기관의 장은 기획연구 등을 위해 필요한 경우 관련 전문가를 포함한 기획위원회를 운영할 수 있게 되었고, 전문기관 및 자체 기획연구를 수행하는 기관의 장은 기획위원회 운영 시 관련 전문가를 포함해야 하는 요건이 추가되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">관련 전문가로 구성된 자문단 → 관련 전문가를 포함한 기획위원회</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 이제 기획연구대상 선정뿐 아니라 기획연구 수행을 위해서도 기획위원회를 운영할 수 있게 되었고, 자체 기획연구를 수행하는 기관의 장도 새롭게 기획연구 수행을 위해 기획위원회를 운영할 수 있게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="14" data-id="mof_rd_regulation_pair:before_2022-B0174"
+  data-slot="1" data-a="model" data-target="절차·요건"
+  data-teacher="늘었다" data-model="다른 값"
+  data-votes="3" data-runs="14">
+ <h3>14. 절차·요건
+   <small>mof_rd_regulation_pair:before_2022-B0174 · 라벨 2번째 ·
+   <b>3/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>③ 전문기관의 장은 <del>제2항</del>의<del> 현장점검</del> 결과에 따라 제28조에 따른 특별평가를 <del>실시</del>할 수 있다.</div>
+   <div><div class="lab">개정 후</div>③ 전문기관의 장은 <ins>진도관리</ins>의 결과에 따라<ins> 필요한 경우</ins> 제28조에 따른 특별평가<ins> 등의 후속 조치</ins>를 할 수 있<ins>으며, 연구개발기관의 장은 이에 적극 협조해야 한</ins>다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">제28조에 따른 특별평가를 실시할 수 있다 → 특별평가 등의 후속 조치를 할 수 있으며, 연구개발기관의 장은 이에 적극 협조해야 한다</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 특별평가를 반드시 실시해야 하는 명시적 근거가 없어지고 필요한 경우 특별평가 등의 후속 조치를 할 수 있는 재량이 생겼으며, 후속 조치의 내용도 특별평가에서 특별평가 등의 후속 조치로 변경되었다. 연구개발기관의 장은 특별평가에 대한 명시적 협력 의무가 없어지고 전문기관의 장의 후속 조치에 대해 적극 협조해야 하는 의무가 새로 생겼다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">실시할 수 있다 → 필요한 경우 할 수 있으며</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 현장점검 결과 대신 진도관리 결과에 따라 필요한 경우에만 특별평가 등의 후속 조치를 할 수 있게 되어 조치 범위는 넓어졌으나 요건이 변경되었으며, 연구개발기관의 장은 이러한 조치에 적극 협조할 의무가 새로 생겼다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="15" data-id="motie_industrial_tech_guideline_pair:before_2022-B0694"
+  data-slot="0" data-a="teacher" data-target="적용 범위"
+  data-teacher="다른 값" data-model="늘었다"
+  data-votes="3" data-runs="14">
+ <h3>15. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0694 · 라벨 1번째 ·
+   <b>3/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>② 장관은 기초ㆍ원천연구, <del>사업수행</del>성과의 활용 촉진을 위하여 공개 활용이 필요하다고 인정한 연구개발과제, 실시를 목적으로 하지 아니하는 연구개발과제에 대해서는 공고를 통해 기술료 비징수 연구개발과제로 지정할 수 있다.</div>
+   <div><div class="lab">개정 후</div>② 장관은 기초ㆍ원천연구, <ins>연구개발</ins>성과의 활용 촉진을 위하여 공개 활용이 필요하다고 인정한 연구개발과제, 실시를 목적으로 하지 아니하는 연구개발과제에 대해서는 공고를 통해 <ins>정부납부</ins>기술료 비징수 연구개발과제로 지정할 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">사업수행성과의 활용 촉진 → 연구개발성과의 활용 촉진</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 기술료 비징수 연구개발과제를 지정할 때 활용 촉진을 고려하는 성과의 종류가 사업수행성과에서 연구개발성과로 바뀌고, 비징수 대상이 되는 기술료가 정부납부기술료로 구체화되었습니다. 이에 따라 연구개발과제 수행자는 비징수 대상 기술료가 정부납부기술료로 특정되어 명확해지고, 활용 촉진 대상 성과의 명칭이 연구개발성과로 변경된 처지가 됩니다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">공개 활용이 필요하다고 인정한 연구개발과제 → 공개 활용이 필요하다고 인정한 연구개발과제</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 연구개발과제 지정 시 적용할 수 있는 명칭을 &#x27;기술료 비징수&#x27;에서 &#x27;정부납부기술료 비징수&#x27;로 변경하였으며, 공개 활용이 필요하다고 인정한 연구개발과제에 대해 이를 지정할 수 있는 범위가 동일 조건에서 확대되었다. 이에 따라 연구개발과제 수행자도 기술료 면제 적용 대상이 될 수 있는 범위가 넓어지게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="16" data-id="mof_rd_regulation_pair:before_2022-B0125"
+  data-slot="0" data-a="teacher" data-target="절차·요건"
+  data-teacher="늘었다" data-model="다른 값"
+  data-votes="2" data-runs="14">
+ <h3>16. 절차·요건
+   <small>mof_rd_regulation_pair:before_2022-B0125 · 라벨 1번째 ·
+   <b>2/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>제18조(예고 및 공모) ① 장관은<del> 육성법 제6조에 따른 해양수산과학기술 육성 시행계획(이하 “시행계획”이라 한다) 수립으로</del> 해당 연도의 연구개발사업 및 연구개발과제가 확정된 경우, 매년 1월 31일까지 연구개발과제의 연구개발비와<del> 공모</del> 일정 등을 예고해야 한다. 다만, 「국회법」에 따라 전년도에 확정된 예산에 편성되지 않는 등 특별한 사정이 있는 경우에는 예외로 한다.</div>
+   <div><div class="lab">개정 후</div>제18조(예고 및 공모) ① 장관은 해당 연도의 연구개발사업 및 연구개발과제가 확정된 경우, <ins>육성법 제6조에 따라 </ins>매년 1월 31일까지<ins> 해양수산과학기술 육성 시행계획(이하 &quot;시행계획&quot;이라 한다)을 수립하여</ins> 연구개발과제의 연구개발비와 일정 등을 예고해야 한다. 다만, 「국회법」에 따라 전년도에 확정된 예산에 편성되지 않는 등 특별한 사정이 있는 경우에는 예외로 한다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">&#x27;육성법 제6조에 따른 ... 시행계획 수립으로 ... 확정된 경우&#x27; → &#x27;확정된 경우, 육성법 제6조에 따라 ... 시행계획을 수립하여&#x27;. 개정 전에는 시행계획 수립이 확정의 전제였을 뿐 장관의 의무로 명시되지 않았으나, 개정 후에는 장관이 시행계획을 수립하는 절차가 예고 의무에 포함됨.</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 이제 연구개발사업 및 연구개발과제가 확정되면 시행계획을 수립하여 예고해야 하는 의무를 지게 되었고, 예고 내용에서 &#x27;공모 일정&#x27;이 &#x27;일정&#x27;으로 변경되어 연구개발과제에 참여하려는 자는 공모 관련 일정을 명시적으로 안내받지 못할 수 있게 되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">수립하여 → 수립하여 (없음)</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 시행계획을 수립하여 예고해야 하는 의무는 유지되지만, 조항에서 ‘수립하여’라는 절차적 요건이 삭제되어 이를 명시하지 않아도 되게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="17" data-id="motie_industrial_tech_guideline_pair:before_2022-B0483"
+  data-slot="0" data-a="model" data-target="절차·요건"
+  data-teacher="늘었다" data-model="다른 값"
+  data-votes="2" data-runs="14">
+ <h3>17. 절차·요건
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0483 · 라벨 1번째 ·
+   <b>2/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>② 주관연구개발기관의 장이 다음 각 호의 사항을 변경하고자 할 경우에는 사전에 전문기관의 장에게 서면으로 협의를 요청<del>해야 </del>하<del>며, 제6호부터 제13호는</del> 전문기관 장의<del> 사전</del> 승인을 거쳐야 변경할 수 있다. 다만, 정책지정 연구개발과제 및 장관이 협약을 체결한 연구개발과제의 경우 제1호와 제2호는 장관의 승인을 거쳐야 한다.</div>
+   <div><div class="lab">개정 후</div>② 주관연구개발기관의 장이 다음 각 호의 사항을 변경하고자 할 경우에는 사전에 전문기관의 장에게 서면으로 협의를 요청하<ins>여</ins> 전문기관 장의 승인을 거쳐야 변경할 수 있<ins>으며, 협의 요청은 해당연도 연구개발기간 종료일까지(제11호에 따른 직접비 이월은 단계 연구개발기간 종료일까지) 가능하</ins>다. 다만, 정책지정 연구개발과제 및 장관이 협약을 체결한 연구개발과제의 경우 제1호와 제2호는 장관의 승인을 거쳐야 한다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">&#x27;변경할 수 있다. 다만, ... → &#x27;변경할 수 있으며, 협의 요청은 해당연도 연구개발기간 종료일까지(제11호에 따른 직접비 이월은 단계 연구개발기간 종료일까지) 가능하다. 다만, ...&#x27;</div>
+  <div class="lab">direct_impact</div><div class="txt">주관연구개발기관의 장은 변경 사항을 추진할 때 전문기관 장의 승인을 받아야 하며, 협의 요청 기한이 해당연도 연구개발기간 종료일까지로 정해져 요청 시한이 명확해졌다. 전문기관은 변경 사항에 대한 승인 권한을 명확히 갖게 되었고, 협의 요청 및 승인 절차에 대한 통제 권한을 확보하게 되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">제6호부터 제13호는 전문기관 장의 사전 승인을 거쳐야 변경할 수 있다 → 전문기관 장의 승인을 거쳐야 변경할 수 있으며</div>
+  <div class="lab">direct_impact</div><div class="txt">주관연구개발기관의 장은 변경 사항 전반에 대해 전문기관의 장의 승인을 받아야 하고 협의 요청 시한이 새로 생겼으며, 전문기관의 장은 승인 권한이 모든 변경 사항으로 확대되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="18" data-id="motie_industrial_tech_guideline_pair:before_2022-B0188"
+  data-slot="1" data-a="teacher" data-target="절차·요건"
+  data-teacher="늘었다" data-model="다른 값"
+  data-votes="2" data-runs="14">
+ <h3>18. 절차·요건
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0188 · 라벨 2번째 ·
+   <b>2/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>⑥ 제3항에도 불구하고 장관이 필요하다고 인정하는 경우에는 <del>산업통상자원부 소속 공무원 및</del> 제1<del>0조</del>의 <del>프로그램</del> <del>디렉터</del>는<del> 예외적으로</del> 평가위원<del>의 자격으로</del> 평가단에 참여할 수 있다.</div>
+   <div><div class="lab">개정 후</div>⑥ 제3항에도 불구하고<ins> 평가에 필요한 전문성 등을 고려하여</ins> 장관이 필요하다고 인정하는 경우에는 <ins>제3항</ins> 제1<ins>호, 제2호</ins>의<ins>나목,</ins> <ins>제3호에</ins> <ins>해당하</ins>는 평가위원<ins>이</ins> 평가단에 참여할 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">장관이 필요하다고 인정하는 경우 → 평가에 필요한 전문성 등을 고려하여 장관이 필요하다고 인정하는 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">산업통상자원부 소속 공무원 및 제10조의 프로그램 디렉터는 예외적으로 평가위원 자격으로 평가단에 참여할 수 있는 근거가 삭제되었고, 제3항 제1호, 제2호의나목, 제3호에 해당하는 평가위원은 평가에 필요한 전문성 등을 고려하여 장관이 필요하다고 인정하는 경우 예외적으로 평가단에 참여할 수 있는 근거가 신설되었다. 또한 장관은 평가단 참여 허용 여부를 결정할 때 평가에 필요한 전문성 등을 고려해야 하는 요건이 추가되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">산업통상자원부 소속 공무원 및 제10조의 프로그램 디렉터는 예외적으로 평가위원의 자격으로 평가단에 참여할 수 있다 → 평가에 필요한 전문성 등을 고려하여 장관이 필요하다고 인정하는 경우에는 제3항 제1호, 제2호의나목, 제3호에 해당하는 평가위원이 평가단에 참여할 수 있다.</div>
+  <div class="lab">direct_impact</div><div class="txt">이 개정으로 평가단 참여 자격 부여 기준이 산업통상자원부 소속 공무원 및 제10조의 프로그램 디렉터 예외 규정에서, 평가에 필요한 전문성 등을 고려하여 장관이 필요하다고 인정하는 경우로 바뀌었고, 이에 따라 산업통상자원부 소속 공무원 및 제10조의 프로그램 디렉터는 더 이상 예외적으로 평가단에 참여할 수 없게 되었으며, 제3항 제1호, 제2호의나목, 제3호에 해당하는 평가위원은 평가에 필요한 전문성 등을 고려하여 장관이 필요하다고 인정하는 경우 평가단에 참여할 수 있게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="19" data-id="motie_industrial_tech_guideline_pair:before_2022-B0536"
+  data-slot="1" data-a="teacher" data-target="절차·요건"
+  data-teacher="줄었다" data-model="다른 값"
+  data-votes="1" data-runs="14">
+ <h3>19. 절차·요건
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0536 · 라벨 2번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>④ 제3항에 해당하는 사유가 해당연도 연구개발기간 시작일부터 2개월 이내에 해소되거나 해당 사유가 발생한 연구개발기관을 교체한 경우 <del>전문기관은 </del>해당연도에 대한 정부지원연구개발비를 지급한다.<del> 단, 주관연구개발기관에서 해당 사유가 발생한 경우 교체가 허용되지 않으며, 2개월 내에 주관연구개발기관 자체적으로 해당 사유를 해소하여야 한다.</del></div>
+   <div><div class="lab">개정 후</div>④<ins> 전문기관은</ins> 제3항에 해당하는 사유가 해당<ins> </ins>연도 연구개발기간 시작일부터 2개월 이내에 해소되거나 해당 사유가 발생한 연구개발기관을 교체한 경우 해당<ins> </ins>연도에 대한 정부지원연구개발비를 지급한다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">&#x27;2개월 내에 주관연구개발기관 자체적으로 해당 사유를 해소하여야 한다&#x27; → 해당 의무 삭제</div>
+  <div class="lab">direct_impact</div><div class="txt">주관연구개발기관은 해당 사유 발생 시 교체가 불가능했던 제한과 2개월 내 자체 해소 의무가 사라져 부담이 줄었고, 전문기관은 주관연구개발기관도 교체할 수 있게 되어 정부지원연구개발비 지급 조건이 완화되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">주관연구개발기관에서 해당 사유가 발생한 경우 교체가 허용되지 않으며, 2개월 내에 주관연구개발기관 자체적으로 해당 사유를 해소하여야 한다 → (삭제)</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관은 정부지원연구개발비 지급 주체에서 제외되었고, 해당 사유가 발생한 연구개발기관은 2개월 내 사유 해소 또는 기관 교체 시 정부지원연구개발비 지급 요건이 명시되던 기한·요건 조항이 삭제되었으며, 주관연구개발기관은 해당 사유 발생 시 교체 허용되지 않고 2개월 내 자체 해소해야 한다는 명시적 요건이 삭제되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="20" data-id="motie_industrial_tech_guideline_pair:before_2022-B0748"
+  data-slot="0" data-a="model" data-target="적용 범위"
+  data-teacher="늘었다" data-model="다른 값"
+  data-votes="1" data-runs="14">
+ <h3>20. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0748 · 라벨 1번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>1<del>5</del>. 거짓이나 그 밖<del>에</del> 부정한 방법으로 연구개발과제를 수행<del>한</del> <del>경우</del></div>
+   <div><div class="lab">개정 후</div>1<ins>0</ins>. 거짓이나 그 밖<ins>의</ins> 부정한 방법으로 연구개발과제를 <ins>신청하거나 이를 </ins>수행<ins>하는</ins> <ins>행위</ins></div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">연구개발과제를 수행한 경우 → 연구개발과제를 신청하거나 이를 수행하는 행위</div>
+  <div class="lab">direct_impact</div><div class="txt">이 조항은 연구개발과제를 신청하거나 수행하는 행위 중 부정한 방법이 있는 경우를 대상으로 하며, 적용 범위가 수행에서 신청·수행으로 넓어지고, 조항 번호도 15에서 10으로 변경되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">연구개발과제를 수행한 경우 → 연구개발과제를 신청하거나 이를 수행하는 행위</div>
+  <div class="lab">direct_impact</div><div class="txt">연구개발과제를 신청하거나 수행하는 자는 신청 단계에서의 부정 행위도 규제 대상에 포함되어 부담이 늘었으며, 연구개발과제 관리 기관은 신청 단계의 부정 행위에 대해서도 제재 근거를 확보하게 되었다</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="21" data-id="motie_industrial_tech_guideline_pair:before_2022-B0027"
+  data-slot="2" data-a="teacher" data-target="적용 범위"
+  data-teacher="다른 값" data-model="늘었다"
+  data-votes="1" data-runs="14">
+ <h3>21. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0027 · 라벨 3번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>9의7. &quot;산업위기지역 소재 기업&quot;이란, 「<del>국가균형발전</del> 특별법」제2조<del>8의</del>2<del>호</del>, 제1<del>7</del>조<del>부터</del> 제1<del>7</del>조<del>의3</del> <del>및</del> <del>「국가균형발전 특별</del>법 시행령<del>」제15조의2부터</del> 제<del>15</del>조<del>의</del>6에서 위임한 사항과 그 시행에 관하여 필요한 사항을 규정하기 위해 산업부에서 고시한 <del>&quot;</del>산업위기대응<del>특별지역</del>의 지정기준 등에 관한 고시<del>&quot;</del>에 따라 지정된 지역의 주된 산업에 종사하는 기업을 말한다.(지정 기간에 한함)</div>
+   <div><div class="lab">개정 후</div>9의7. &quot;산업위기지역 소재 기업&quot;이란, 「<ins>지역 산업위기 대응 및 지역경제 회복을 위한</ins> 특별법」제<ins>8조제</ins>2<ins>항, 제9</ins>조<ins>제</ins>2<ins>항</ins>, 제1<ins>0</ins>조<ins>제6항 및 제8항,</ins> 제1<ins>3</ins>조<ins>와</ins> <ins>같은</ins> 법 시행령 제<ins>6</ins>조<ins>제3항, 제7조제4항, 제8조제3항 및 제</ins>6<ins>항</ins>에서 위임한 사항과 그 시행에 관하여 필요한 사항을 규정하기 위해 산업<ins>통상자원</ins>부에서 고시한 <ins>「지역 </ins>산업위기대응<ins> 제도</ins>의 지정기준 등에 관한 고시<ins>」</ins>에 따라 지정된 <ins>산업위기대응특별</ins>지역의 주된 산업에 종사하는 기업을 말한다.(지정 기간에 한함)</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">지정된 지역의 주된 산업 → 지정된 산업위기대응특별지역의 주된 산업</div>
+  <div class="lab">direct_impact</div><div class="txt">산업위기지역 소재 기업의 정의 근거가 「국가균형발전 특별법」에서 「지역 산업위기 대응 및 지역경제 회복을 위한 특별법」으로 변경되어, 산업위기대응특별지역 지정 기준과 주된 산업 판단 근거가 달라졌다. 이에 따라 해당 기업으로 인정받기 위한 요건이 달라질 수 있으며, 산업통상자원부가 고시하는 관련 고시의 법적 근거와 내용도 바뀌었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">「국가균형발전 특별법」제2조8의2호, 제17조부터 제17조의3 및 「국가균형발전 특별법 시행령」제15조의2부터 제15조의6 → 「지역 산업위기 대응 및 지역경제 회복을 위한 특별법」제8조제2항, 제9조제2항, 제10조제6항 및 제8항, 제13조 및 같은 법 시행령 제6조제3항, 제7조제4항, 제8조제3항 및 제6항</div>
+  <div class="lab">direct_impact</div><div class="txt">산업위기대응특별지역의 주된 산업에 종사하는 기업은 이제 국가균형발전 특별법이 아닌 지역 산업위기 대응 및 지역경제 회복을 위한 특별법에 따른 지정 기준을 적용받으며, 해당 고시를 발행하는 부처도 산업부에서 산업통상자원부로 변경되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="22" data-id="motie_industrial_tech_guideline_pair:before_2022-B0203"
+  data-slot="0" data-a="teacher" data-target="적용 범위"
+  data-teacher="다른 값" data-model="줄었다"
+  data-votes="1" data-runs="14">
+ <h3>22. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0203 · 라벨 1번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>② MD의 자격과 선정에 관한 사항, MD를 지정하는 해당<del>산</del>업, 권한 및 의무, 보수 등에 관한 사항은 장관이 별도로 정한다.</div>
+   <div><div class="lab">개정 후</div>② MD의 자격과 선정에 관한 사항, MD를 지정하는 해당업<ins>무 범위</ins>, 권한 및 의무, 보수 등에 관한 사항은 장관이 별도로 정한다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">MD를 지정하는 해당산업 → MD를 지정하는 해당업무 범위</div>
+  <div class="lab">direct_impact</div><div class="txt">장관이 별도로 정하는 사항 중 MD를 지정하는 기준이 &#x27;해당산업&#x27;에서 &#x27;해당업무 범위&#x27;로 바뀌면서, 장관의 규정 마련 범위와 MD의 지정 기준이 달라졌다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">해당산업 → 해당업무 범위</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 MD를 지정하는 해당업무 범위를 별도로 정할 수 있게 되었고, MD의 권한·의무, 보수 등에 관한 사항을 정할 때 해당업무 범위를 기준으로 하게 되었다. 이에 따라 MD는 지정되는 해당업무가 자격·선정, 권한·의무, 보수 등에 관한 사항의 적용 범위를 결정하게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="23" data-id="motie_industrial_tech_guideline_pair:before_2022-B0723"
+  data-slot="0" data-a="model" data-target="적용 범위"
+  data-teacher="줄었다" data-model="다른 값"
+  data-votes="1" data-runs="14">
+ <h3>23. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0723 · 라벨 1번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>⑤ 전문기관의 장 및 위탁정산기관의 장은 기술료, <del>정산</del>금, 환수금 납부 또는 성과활용보고서 제출 등의 의무사항이 완료된 연구개발과제의 자료에 대해서는 폐기할 수 있다. 이때 중단, 협약 해약, 최종평가 결과 불성실수행 연구개발과제의 경우는 3년이 경과된 후 폐기할 수 있다. 단, 최종보고서의 경우는 전자파일의 형태로 보관하여야 한다.</div>
+   <div><div class="lab">개정 후</div>⑤ 전문기관의 장 및 위탁정산기관의 장은 <ins>정부납부</ins>기술료, <ins>회수</ins>금, 환수금 납부 또는 성과활용보고서 제출 등의 의무사항이 완료된 연구개발과제의 자료에 대해서는 폐기할 수 있다. 이때 중단, 협약 해약, 최종<ins> </ins>평가 결과 불성실수행 연구개발과제의 경우는 3년이 경과된 후 폐기할 수 있다. 단, 최종보고서의 경우는 전자파일의 형태로 보관하여야 한다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">연구개발과제의 자료 → 연구개발과제의 자료</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장 및 위탁정산기관의 장은 폐기할 수 있는 자료의 명칭이 정부납부기술료, 회수금, 환수금에서 정부납부기술료, 회수금, 환수금으로 바뀌었고, 적용 범위와 제출물·기재사항이 변경되었으며, 3년 경과 후 폐기 가능 시점은 동일하다. 이에 따라 연구개발과제 수행기관은 자신의 의무가 해당 명칭으로 표기된 항목인지 확인해야 한다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">기술료 → 정부납부기술료</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장 및 위탁정산기관의 장은 자료 폐기 가능 요건이 &#x27;기술료 납부 완료&#x27;에서 &#x27;정부납부기술료 납부 완료&#x27;로 변경되어 폐기할 수 있는 자료의 범위가 좁아졌고, 연구개발과제 수행자는 자료 폐기를 위해 납부해야 하는 기술료가 &#x27;정부납부기술료&#x27;로 구체화되었으며 &#x27;정산금&#x27;이 &#x27;회수금&#x27;으로 명칭이 변경되어 의무사항의 명칭이 달라졌다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="24" data-id="motie_industrial_tech_guideline_pair:before_2022-B0639"
+  data-slot="1" data-a="model" data-target="적용 범위"
+  data-teacher="늘었다" data-model="다른 값"
+  data-votes="1" data-runs="14">
+ <h3>24. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0639 · 라벨 2번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>⑥<del> 제39조제1항에 따라 기술료를 징수하는</del> 연구개발성과<del>과제</del>의 <del>주</del>관연구개발<del>기관</del> <del>또는</del> <del>공동연구개발기관은</del> <del>다음 각 호</del>에 해당하<del>는</del> 경우에는 해당 연구개발과제의 <del>공동</del>연구개발기관, 실시기관 등과 협의하여 <del>제1항부터 제2항의 규정에 따라 취득한 </del>연구개발성과를 <del>그 연구개발과제의 공동</del>연구개발기관, 실시기관 또는 다른 적정한 기관(국내에 있는 기관을 우선적으로 고려하여야 한다)에게 양<del>여</del>할 수 있다.<del> 다만, 연구개발기관이 연구개발성과에 대한 권리를 포기한 경우에는 해당 연구개발과제를 수행한 연구책임자에게 무상으로 양여할 수 있다.</del></div>
+   <div><div class="lab">개정 후</div>⑥ 연구개발성과<ins>소유기관</ins>의 <ins>장은 이 요령, 기타 </ins>관<ins>련 규정이나 협약에서 별도로 정한 </ins>연구개발<ins>성과</ins> <ins>양도</ins> <ins>제한</ins> <ins>사유</ins>에 해당하<ins>지 아니한</ins> 경우에는 해당 연구개발과제의 <ins>다른 </ins>연구개발기관, 실시기관 등과 협의하여 연구개발성과를 연구개발기관, 실시기관 또는 다른 적정한 기관(국내에 있는 기관을 우선적으로 고려하여야 한다)에게 양<ins>도</ins>할 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">제1항부터 제2항의 규정에 따라 취득한 연구개발성과 → 이 요령, 기타 관련 규정이나 협약에서 별도로 정한 연구개발성과 양도 제한 사유에 해당하지 아니한 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">이 개정으로 연구개발성과를 양도할 수 있는 주체가 기술료를 징수하는 연구개발성과과제의 주관연구개발기관 또는 공동연구개발기관에서 연구개발성과소유기관의 장으로 바뀌었고, 양도 제한 사유도 제1항부터 제2항의 규정에 따른 취득에서 이 요령, 기타 관련 규정이나 협약에서 별도로 정한 연구개발성과 양도 제한 사유에 해당하지 아니한 경우로 변경되었다. 이에 따라 연구개발성과소유기관의 장은 연구개발성과를 양도할 수 있게 되었고, 기술료를 징수하는 연구개발성과과제의 주관연구개발기관 또는 공동연구개발기관은 이 조항에 따른 연구개발성과 양도의 주체에서 제외되었으며, 다른 연구개발기관, 실시기관 등은 연구개발성과를 양도받을 수 있는 대상이 될 수 있게 되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">기술료를 징수하는 연구개발성과과제로 한정 → 연구개발성과소유기관의 장이 양도 제한 사유에 해당하지 않으면 가능하도록 확대</div>
+  <div class="lab">direct_impact</div><div class="txt">연구개발성과소유기관의 장은 양도 제한 사유에 해당하지 않으면 다른 연구개발기관 등과 협의하여 연구개발성과를 양도할 수 있게 되었고, 양도 제한 사유도 긍정적 요건에서 부정적 요건으로 바뀌었다. 반면, 연구개발기관이 권리를 포기한 경우 연구책임자에게 무상 양여할 수 있었던 조항은 사라져 연구책임자의 무상 양여 수령 가능성이 없어졌으며, 주관연구개발기관 또는 공동연구개발기관이 직접 양여하던 구조에서 연구개발성과소유기관의 장이 양도 주체가 되는 것으로 변경되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="25" data-id="mof_rd_regulation_pair:before_2022-B0174"
+  data-slot="2" data-a="teacher" data-target="적용 범위"
+  data-teacher="늘었다" data-model="다른 값"
+  data-votes="1" data-runs="14">
+ <h3>25. 적용 범위
+   <small>mof_rd_regulation_pair:before_2022-B0174 · 라벨 3번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>③ 전문기관의 장은 <del>제2항</del>의<del> 현장점검</del> 결과에 따라 제28조에 따른 특별평가를 <del>실시</del>할 수 있다.</div>
+   <div><div class="lab">개정 후</div>③ 전문기관의 장은 <ins>진도관리</ins>의 결과에 따라<ins> 필요한 경우</ins> 제28조에 따른 특별평가<ins> 등의 후속 조치</ins>를 할 수 있<ins>으며, 연구개발기관의 장은 이에 적극 협조해야 한</ins>다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">특별평가를 실시할 수 있다 → 특별평가 등의 후속 조치를 할 수 있으며</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 현장점검 결과 대신 진도관리 결과에 따라 필요한 경우에만 특별평가 등의 후속 조치를 할 수 있게 되어 조치 범위는 넓어졌으나 요건이 변경되었으며, 연구개발기관의 장은 이러한 조치에 적극 협조할 의무가 새로 생겼다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">제2항의 현장점검 결과에 따라 제28조에 따른 특별평가를 실시할 수 있다 → 진도관리의 결과에 따라 필요한 경우 제28조에 따른 특별평가 등의 후속 조치를 할 수 있으며</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 특별평가를 실시할 수 있는 근거가 현장점검 결과에서 진도관리 결과로 변경되고 필요한 경우 후속 조치까지 할 수 있게 되었으며, 연구개발기관의 장은 이에 적극 협조해야 하는 의무가 새로 생겼다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="26" data-id="motie_industrial_tech_guideline_pair:before_2022-B0747"
+  data-slot="1" data-a="model" data-target="적용 범위"
+  data-teacher="늘었다" data-model="다른 값"
+  data-votes="1" data-runs="14">
+ <h3>26. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0747 · 라벨 2번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div><del>1</del>4. 정당한 사유 없이 기술료를 납부하지 아니한 경우</div>
+   <div><div class="lab">개정 후</div>4.<ins> 연구개발기관이</ins> 정당한 사유 없이 기술료<ins>의 일부 또는 수익의 일부</ins>를 납부하지 아니한 경우</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">정당한 사유 없이 기술료를 납부하지 아니한 경우 → 연구개발기관이 정당한 사유 없이 기술료의 일부 또는 수익의 일부를 납부하지 아니한 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">개정 전에는 기술료 전액에 대해 정당한 사유 없이 납부하지 않으면 해당되었으나, 개정 후에는 연구개발기관이 정당한 사유 없이 기술료의 일부 또는 수익의 일부를 납부하지 않으면 되는 것으로 적용 범위가 달라졌다. 이에 따라 연구개발기관은 납부하지 않아도 되는 부분이 확대되었고, 기술료 징수 기관은 징수 및 조치 대상이 기술료 일부 또는 수익 일부인지 여부에 따라 달라지게 되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">기술료 → 기술료의 일부 또는 수익의 일부</div>
+  <div class="lab">direct_impact</div><div class="txt">개정 전에는 정당한 사유 없이 기술료를 납부하지 아니한 경우라고만 규정되어 납부 의무 주체가 명시되지 않았으나, 개정 후에는 &#x27;연구개발기관&#x27;이 정당한 사유 없이 기술료의 일부 또는 수익의 일부를 납부하지 아니한 경우로 바뀌어 의무 주체가 연구개발기관으로 명시되고, 납부 대상이 기술료 전액에서 기술료의 일부 또는 수익의 일부로 확대되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="27" data-id="mof_rd_regulation_pair:before_2022-B0224"
+  data-slot="0" data-a="model" data-target="절차·요건"
+  data-teacher="줄었다" data-model="다른 값"
+  data-votes="1" data-runs="14">
+ <h3>27. 절차·요건
+   <small>mof_rd_regulation_pair:before_2022-B0224 · 라벨 1번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>② 제1항에 따라 전문기관의 장이 <del>갖추어야 </del>하는 <del>과제지원</del>시스템에는 다음 각 호의 정보<del>가</del> 포함<del>되어야</del> <del>한</del>다.</div>
+   <div><div class="lab">개정 후</div>② 제1항에 따라 전문기관의 장이 <ins>구축ㆍ운영</ins>하는 시스템에는 다음 각 호의 정보<ins>를</ins> 포함<ins>할</ins> <ins>수 있</ins>다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">다른 값</div>
+  <div class="lab">근거</div><div class="txt">&#x27;다음 각 호의 정보가 포함되어야 한다&#x27; → &#x27;다음 각 호의 정보를 포함할 수 있다&#x27; (의무의 성격이 &#x27;포함해야 한다&#x27;에서 &#x27;할 수 있다&#x27;로 변경)</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 과제지원시스템에 각 호의 정보를 &#x27;채워야 하는&#x27; 의무에서 &#x27;구축ㆍ운영하는&#x27; 시스템 내에 &#x27;포함할 수 있는&#x27; 권한으로 변경되어, 정보 포함에 대한 부담이 줄고 포함 가능여부로 바뀌었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">갖추어야 하는 과제지원시스템에는 다음 각 호의 정보가 포함되어야 한다 → 구축ㆍ운영하는 시스템에는 다음 각 호의 정보를 포함할 수 있다</div>
+  <div class="lab">direct_impact</div><div class="txt">전문기관의 장은 기존에 과제지원시스템을 갖추고 각 호의 정보를 반드시 포함해야 했으나, 개정 후에는 시스템을 구축ㆍ운영하면서 해당 정보를 포함할 수 있도록 의무가 완화되어 재량이 생겼다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article>
+
+<script>
+const KEY = "H_eval_label_review";
+let ans = {};
+try { ans = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { ans = {}; }
+let mode = "tsv";
+
+function rows() {
+  return [...document.querySelectorAll(".card")].map(c => {
+    const a = ans[c.dataset.i] || {};
+    // 갑·을은 화면 자리다. 저장할 때 교사/모델로 되돌린다.
+    let who = a.v || "";
+    if (who === "갑") who = c.dataset.a === "teacher" ? "교사" : "모델";
+    else if (who === "을") who = c.dataset.a === "teacher" ? "모델" : "교사";
+    return {
+      no: c.dataset.i, id: c.dataset.id, slot: c.dataset.slot,
+      대상: c.dataset.target, 교사방향: c.dataset.teacher, 모델방향: c.dataset.model,
+      같은답: c.dataset.votes + "/" + c.dataset.runs,
+      판정: who, 메모: (a.m || "").replace(/\t/g, " ")
+    };
+  });
+}
+function dump() {
+  const r = rows();
+  document.getElementById("out").value = mode === "json"
+    ? JSON.stringify(r, null, 1)
+    : [Object.keys(r[0] || {}).join("\t"),
+       ...r.map(x => Object.values(x).join("\t"))].join("\n");
+  document.getElementById("cnt").textContent =
+    r.filter(x => x.판정).length + "/" + r.length;
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(ans)); dump(); }
+
+document.querySelectorAll(".card").forEach(c => {
+  const i = c.dataset.i, a = ans[i] || {};
+  c.querySelectorAll(".ask button").forEach(b => {
+    if (a.v === b.dataset.v) { b.classList.add("on"); c.classList.add("done"); }
+    b.onclick = () => {
+      c.querySelectorAll(".ask button").forEach(x => x.classList.remove("on"));
+      b.classList.add("on"); c.classList.add("done");
+      ans[i] = Object.assign({}, ans[i], {v: b.dataset.v}); save();
+    };
+  });
+  const m = c.querySelector(".memo");
+  m.value = a.m || "";
+  // 글자마다 다시 그리면 포커스를 잃는다. 저장만 하고 화면은 그대로 둔다.
+  m.oninput = () => { ans[i] = Object.assign({}, ans[i], {m: m.value});
+                      localStorage.setItem(KEY, JSON.stringify(ans)); };
+});
+document.getElementById("tsv").onclick = () => { mode = "tsv"; dump(); };
+document.getElementById("json").onclick = () => { mode = "json"; dump(); };
+document.getElementById("reset").onclick = () => {
+  if (confirm("판정을 전부 지운다")) { ans = {}; localStorage.removeItem(KEY); location.reload(); }
+};
+// 브라우저 저장소만으로는 부족하다. 저장소를 비우거나 다른 기기에서 열면 사라진다.
+document.getElementById("save").onclick = () => {
+  const blob = new Blob([document.getElementById("out").value],
+                        {type: "text/plain;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "답." + (mode === "json" ? "json" : "tsv");
+  a.click();
+};
+dump();
+</script>

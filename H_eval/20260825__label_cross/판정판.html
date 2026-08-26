@@ -1,0 +1,372 @@
+<meta charset="utf-8"><title>라벨 방향 판정판</title>
+<style>
+ body{font:14px/1.7 -apple-system,'Segoe UI',sans-serif;margin:2rem auto;max-width:1000px;padding:0 1rem;color:#111}
+ h1{font-size:1.4rem;margin:0 0 .3rem} h3{font-size:.95rem;margin:0 0 .7rem}
+ small{font-weight:400;color:#666}
+ .head{background:#f6f7f9;border:1px solid #dde;border-radius:6px;padding:.9rem 1.1rem;margin:1rem 0}
+ .head dt{float:left;width:8.5rem;clear:left;color:#555;font-size:.86rem}
+ .head dd{margin:0 0 .35rem 8.5rem;font-size:.86rem}
+ code{background:#fff;border:1px solid #ddd;border-radius:3px;padding:.05rem .3rem;font-size:.82rem}
+ .rule{background:#fffbe9;border-left:3px solid #e2c86a;padding:.6rem .9rem;margin:1rem 0;font-size:.88rem}
+ .card{border:1px solid #dcdfe4;border-radius:8px;padding:1rem 1.2rem;margin:1.4rem 0}
+ .card.done{background:#f6faf6;border-color:#bcd8bc}
+ .diff{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-bottom:.9rem}
+ .diff>div{background:#fafbfc;border:1px solid #e6e8ec;border-radius:5px;padding:.6rem .8rem;
+   font-size:.84rem;max-height:15rem;overflow:auto;white-space:pre-wrap;word-break:break-all}
+ del{background:#ffe1e1;text-decoration:line-through} ins{background:#dcf3dc;text-decoration:none}
+ .lab{color:#777;font-size:.75rem;letter-spacing:.03em;margin:.5rem 0 .15rem}
+ .sides{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
+ .side{border:1px solid #e0e3e8;border-radius:5px;padding:.6rem .8rem;background:#fff}
+ .tag{font-weight:700;font-size:1rem} .dir{font-size:1.05rem;font-weight:600;color:#2a4d8f}
+ .txt{font-size:.84rem;white-space:pre-wrap}
+ .ask{margin-top:.9rem;display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+ .ask button{padding:.35rem .8rem;font-size:.85rem;border:1px solid #c8ccd3;border-radius:5px;
+   background:#fff;cursor:pointer}
+ .ask button.on{background:#2a4d8f;color:#fff;border-color:#2a4d8f}
+ .memo{flex:1;min-width:14rem;padding:.35rem .5rem;font-size:.85rem;border:1px solid #d5d8dd;border-radius:5px}
+ #bar{position:sticky;top:0;background:#fff;border-bottom:1px solid #dde;padding:.6rem 0;z-index:9}
+ #bar button{padding:.3rem .7rem;font-size:.85rem;margin-right:.3rem}
+ textarea{width:100%;height:8rem;font:12px/1.5 ui-monospace,monospace;margin-top:.5rem}
+</style>
+<h1>라벨 방향 판정판</h1>
+<dl class="head">
+ <dt>가리려는 것</dt><dd>방향이 어긋난 자리에서 <b>누가 맞나</b>.
+   교사냐 · 모델이냐 · 둘 다 말이 되냐</dd>
+ <dt>본 칸</dt><dd><code>적용 범위:늘었다:줄었다</code> · <code>적용 범위:줄었다:늘었다</code></dd>
+ <dt>잰 것</dt><dd>delora-run2A, delora-s43-run2A, delora-s44-run2A, gralora-run2A, lily-run2A, lora-run2A, lora-s43-run2A, lora-s44-run2A, miss-run2A, miss-s43-run2A, miss-s44-run2A, peanut-run2A, pissa-run2A, rslora-run2A</dd>
+ <dt>채점 폴더</dt><dd><code>eval-mof-motie</code> · 홀드아웃 <code>data/20260821__annotate__v2.2-run2A/holdout.jsonl</code></dd>
+ <dt>분모</dt><dd><b>고유 9자리.</b> 열쇠는 (건 id, 교사 라벨 순번)이다.
+   같은 자리를 여러 실험이 푼 것은 한 장으로 묶고, 몇 개가 같은 답을 냈는지만 적었다.
+   모델 쪽은 <b>제일 많이 나온 방향</b> 하나를 대표로 세웠다</dd>
+ <dt>눈가림</dt><dd>갑·을 자리를 건마다 섞었고 <code>근거</code>의 <code>이전:</code>·
+   <code>이후:</code> 말머리를 뗐다. <b>문투로 새어나갈 수 있다</b> — 그럴 때는 알고 보되
+   판단은 조문에서 한다</dd>
+ <dt>만든 날 · 명령</dt><dd>2026-08-25 · <code>python -m H_eval.label_review --out &#x27;H_eval/20260825__label_cross/판정판.html&#x27; --date 2026-08-25</code></dd>
+</dl>
+
+<div class="rule"><b>답이 뜻하는 것.</b>
+ <b>교사가 맞다</b> → 모델 잘못이다. 자는 그대로 둔다 ·
+ <b>모델이 맞다</b> → <b>교사 라벨이 틀렸다.</b> <code>data_collect</code>로 넘긴다 ·
+ <b>둘 다 말이 된다</b> → 경계가 흐리다. <b>여기가 등가표의 근거다</b> ·
+ <b>둘 다 틀렸다</b> → 조문을 아무도 못 읽었다<br>
+ <b>「적용 범위」의 늘었다 ↔ 줄었다는 정반대로 읽은 것이라 등가표로 접으면 안 된다.</b>
+ 여기서 「둘 다 말이 된다」가 많이 나오면 그건 등가표가 아니라
+ <b>규칙서에서 그 칸의 뜻이 흐리다</b>는 뜻이다.</div>
+
+<div id="bar">
+ <b id="cnt">0/9</b>
+ <button id="tsv">TSV</button><button id="json">JSON</button>
+ <button id="save">파일로 저장</button><button id="reset">초기화</button>
+ <span style="color:#a33;font-size:.82rem">끝나면 반드시 「파일로 저장」</span>
+ <textarea id="out" readonly></textarea>
+</div>
+
+<article class="card" data-i="1" data-id="motie_industrial_tech_guideline_pair:before_2022-B0747"
+  data-slot="1" data-a="teacher" data-target="적용 범위"
+  data-teacher="늘었다" data-model="줄었다"
+  data-votes="10" data-runs="14">
+ <h3>1. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0747 · 라벨 2번째 ·
+   <b>10/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div><del>1</del>4. 정당한 사유 없이 기술료를 납부하지 아니한 경우</div>
+   <div><div class="lab">개정 후</div>4.<ins> 연구개발기관이</ins> 정당한 사유 없이 기술료<ins>의 일부 또는 수익의 일부</ins>를 납부하지 아니한 경우</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">기술료 → 기술료의 일부 또는 수익의 일부</div>
+  <div class="lab">direct_impact</div><div class="txt">개정 전에는 정당한 사유 없이 기술료를 납부하지 아니한 경우라고만 규정되어 납부 의무 주체가 명시되지 않았으나, 개정 후에는 &#x27;연구개발기관&#x27;이 정당한 사유 없이 기술료의 일부 또는 수익의 일부를 납부하지 아니한 경우로 바뀌어 의무 주체가 연구개발기관으로 명시되고, 납부 대상이 기술료 전액에서 기술료의 일부 또는 수익의 일부로 확대되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">정당한 사유 없이 기술료를 납부하지 아니한 경우 → 연구개발기관이 정당한 사유 없이 기술료의 일부 또는 수익의 일부를 납부하지 아니한 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">이 개정으로 정당한 사유 없이 기술료를 납부하지 않은 경우에 대한 적용 대상이 &#x27;기술료를 납부하지 아니한 경우&#x27;에서 &#x27;연구개발기관이 정당한 사유 없이 기술료의 일부 또는 수익의 일부를 납부하지 아니한 경우&#x27;로 변경되어, 연구개발기관은 일부 또는 수익만 납부한 경우에는 이 조항의 적용을 받지 않게 되었고, 해당 조항의 적용 대상도 기술료를 전부 납부하지 않은 경우에서 연구개발기관이 일부 또는 수익만 납부하지 않은 경우로 좁혀졌다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="2" data-id="mof_rd_regulation_pair:before_2022-B0138"
+  data-slot="0" data-a="model" data-target="적용 범위"
+  data-teacher="줄었다" data-model="늘었다"
+  data-votes="10" data-runs="14">
+ <h3>2. 적용 범위
+   <small>mof_rd_regulation_pair:before_2022-B0138 · 라벨 1번째 ·
+   <b>10/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>제21조(연구개발과제 선정) ① 장관은 제20조에 따른 선정평가 결과를 확정하려는 경우 제11조에 따른 심의위원회의 심의를 거쳐야 한다. 다만, 장관이 심의위원회의 심의를 거칠 필요가 없다고 인정하는 경우에는 <del>예외로</del> <del>한</del>다.</div>
+   <div><div class="lab">개정 후</div>제21조(연구개발과제 선정) ① 장관은 제20조에 따른 선정평가 결과를 확정하려는 경우 제11조에 따른 심의위원회의 심의를 거쳐야 한다. 다만, 장관이 <ins>연구개발과제에 대한 심의‧조정이 불필요하거나 연구 추진의 효율성을 위해 </ins>심의위원회의 심의를 거칠 필요가 없다고 인정하는 경우에는 <ins>그렇지</ins> <ins>않</ins>다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">다만, 장관이 심의위원회의 심의를 거칠 필요가 없다고 인정하는 경우에는 예외로 한다. → 다만, 장관이 연구개발과제에 대한 심의‧조정이 불필요하거나 연구 추진의 효율성을 위해 심의위원회의 심의를 거칠 필요가 없다고 인정하는 경우에는 그렇지 않다.</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 선정평가 결과를 확정할 때 심의위원회의 심의를 거칠 필요가 없다고 인정하는 경우 예외로 할 수 있던 절차가 사라지고, 심의‧조정이 불필요하거나 연구 추진의 효율성을 위해 심의위원회의 심의를 거칠 필요가 없다고 인정하는 경우에 한해 심의를 거치지 않을 수 있는 판단 범위가 넓어졌다. 반면 심의위원회는 장관이 예외로 인정할 수 있던 심의 절차가 없어지면서 심의를 거칠 필요가 없다고 인정하는 한 심의를 거치지 않을 수 있는 경우가 줄어들어 심의 역할이 상대적으로 강화되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">다만, 장관이 심의위원회의 심의를 거칠 필요가 없다고 인정하는 경우에는 예외로 한다. → 다만, 장관이 연구개발과제에 대한 심의‧조정이 불필요하거나 연구 추진의 효율성을 위해 심의위원회의 심의를 거칠 필요가 없다고 인정하는 경우에는 그렇지 않다.</div>
+  <div class="lab">direct_impact</div><div class="txt">장관은 심의위원회 심의를 거치지 않으려면 연구개발과제에 대한 심의‧조정이 불필요하거나 연구 추진의 효율성을 위한 경우라고 인정해야 하며, 이에 따라 심의위원회의 심의가 필요한 경우가 확대되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="3" data-id="motie_industrial_tech_guideline_pair:before_2022-B0525"
+  data-slot="0" data-a="model" data-target="적용 범위"
+  data-teacher="줄었다" data-model="늘었다"
+  data-votes="7" data-runs="14">
+ <h3>3. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0525 · 라벨 1번째 ·
+   <b>7/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>14. 민간투자유치를 의무화하는 사업에서 투자계약이 변경ㆍ무효화ㆍ양도된 경우</div>
+   <div><div class="lab">개정 후</div>14. 민간투자유치를 의무화하는 사업에서 투자<ins>기관협의회의 사전 승인 없이 투자</ins>계약이 변경ㆍ무효화ㆍ양도된 경우<ins> 또는 체결된 투자계약이 담보제공을 조건으로 한 경우</ins></div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">투자계약이 변경ㆍ무효화ㆍ양도된 경우 → 투자계약이 변경ㆍ무효화ㆍ양도된 경우 또는 체결된 투자계약이 담보제공을 조건으로 한 경우 또는 사전 승인 없이 변경ㆍ무효화ㆍ양도된 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">민간투자유치를 의무화하는 사업에서 투자계약이 변경·무효화·양도된 경우, 개정 전에는 해당 사유만으로 규정되었으나 개정 후에는 &#x27;체결된 투자계약이 담보제공을 조건으로 한 경우&#x27;와 &#x27;사전 승인 없이 변경·무효화·양도된 경우&#x27;가 추가되어 적용 범위가 넓어졌고, 이에 따라 투자기관은 사전 승인 의무를 새로 부담하게 되었으며 투자기관협의회는 사전 승인 권한을 행사할 수 있는 범위가 확대되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">투자계약이 변경ㆍ무효화ㆍ양도된 경우 → 투자기관협의회의 사전 승인 없이 투자계약이 변경ㆍ무효화ㆍ양도된 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">투자기관협의회는 투자계약의 변경ㆍ무효화ㆍ양도에 대해 사전 승인 권한을 갖게 되어, 사전 승인을 하면 해당 사항이 이 규정의 적용 대상에서 제외되도록 할 수 있다. 투자계약 당사자는 투자계약의 변경ㆍ무효화ㆍ양도가 이 규정의 적용을 받지 않으려면 투자기관협의회의 사전 승인을 받아야 하며, 체결된 투자계약이 담보제공을 조건으로 한 경우에도 이 규정의 적용을 받게 된다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="4" data-id="motie_industrial_tech_guideline_pair:before_2022-B0527"
+  data-slot="0" data-a="model" data-target="적용 범위"
+  data-teacher="늘었다" data-model="줄었다"
+  data-votes="5" data-runs="14">
+ <h3>4. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0527 · 라벨 1번째 ·
+   <b>5/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>16. 연구책임자가 다른 연구개발과제 수행과정에서 제<del>44</del>조에 따라<del> 연구개발비의 용도 외 사용으로</del> 참여제한이 확정된 경우</div>
+   <div><div class="lab">개정 후</div>16. 연구책임자가 다른 연구개발과제 수행과정에서 <ins>국연법 </ins>제<ins>32</ins>조에 따라 참여제한이 확정된 경우</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">연구개발비의 용도 외 사용 → 참여제한 (용도 외 사용 관련 구체적 요건 삭제)</div>
+  <div class="lab">direct_impact</div><div class="txt">연구책임자는 참여제한 확정을 초래하는 법령이 제44조에서 국연법 제32조로 바뀌고, 종전에는 연구개발비의 용도 외 사용 등이 명시되었으나 이제는 참여제한만으로 확인되는 등, 참여제한 사유와 입증 요건이 변경되었다. 또한 국연법 제32조에 따른 참여제한 확정이 연구책임자의 연구개발비 용도 외 사용 참여제한 확인 기준으로 새로 적용되게 되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">연구개발비의 용도 외 사용으로 참여제한이 확정된 경우 → 참여제한이 확정된 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">연구책임자는 다른 연구개발과제 수행과정에서 국연법 제32조에 따라 참여제한이 확정되기만 하면 이 조항의 요건을 충족하게 되었으며, 이전에는 제44조에 따른 연구개발비 용도 외 사용으로 참여제한이 확정된 경우로 한정되어 있었다</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="5" data-id="motie_industrial_tech_guideline_pair:before_2022-B0746"
+  data-slot="0" data-a="teacher" data-target="적용 범위"
+  data-teacher="늘었다" data-model="줄었다"
+  data-votes="5" data-runs="14">
+ <h3>5. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0746 · 라벨 1번째 ·
+   <b>5/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>1<del>3</del>. 민간투자유치를 의무화하는 사업에서<del>의</del> 투자계약이 변경ㆍ무효화ㆍ양도된 경우</div>
+   <div><div class="lab">개정 후</div>1<ins>9</ins>. 민간투자유치를 의무화하는 사업에서<ins> 사전 승인 없이</ins> 투자계약이 변경ㆍ무효화ㆍ양도된 경우<ins> 또는 체결된 투자계약이 담보제공을 조건으로 한 경우</ins></div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">민간투자유치를 의무화하는 사업에서의 투자계약이 변경ㆍ무효화ㆍ양도된 경우 → 민간투자유치를 의무화하는 사업에서 사전 승인 없이 투자계약이 변경ㆍ무효화ㆍ양도된 경우 또는 체결된 투자계약이 담보제공을 조건으로 한 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">이 개정으로 민간투자유치 의무화 사업에서 투자계약의 변경·무효화·양도 시 사전 승인 여부가 해당 조항의 적용 조건이 되었으며, 담보제공을 조건으로 체결된 투자계약도 새롭게 적용 대상에 포함되었다. 이에 따라 투자계약 당사자는 사전 승인 없이 변경 등을 하거나 담보제공 조건 계약을 체결할 경우 이 조항의 적용을 받게 되고, 사전 승인 권한자는 승인 절차 위반 여부를 기준으로 해당 조항을 적용할 수 있는 근거가 명확해졌다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">민간투자유치를 의무화하는 사업에서의 투자계약 → 민간투자유치를 의무화하는 사업에서 사전 승인 없이 투자계약이 변경ㆍ무효화ㆍ양도된 경우 또는 체결된 투자계약이 담보제공을 조건으로 한 경우</div>
+  <div class="lab">direct_impact</div><div class="txt">이 개정으로 의무화 사업에서 민간투자유치를 의무화하는 사업으로 한정되던 투자계약 변경·무효화·양도 규정의 적용 범위가 사전 승인 없이 이루어진 경우나 담보제공을 조건으로 한 계약 체결 사례로 좁혀졌다. 이에 따라 사전 승인 없이 투자계약을 변경·무효화·양도하거나 담보제공을 조건으로 한 계약을 체결한 당사자는 이 조항의 적용 대상에서 제외되어 규제 대상이 아니게 되었고, 사업 시행 주체는 해당 조건들을 확인하여 적용 범위를 제한할 수 있게 되었다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="6" data-id="motie_industrial_tech_guideline_pair:before_2022-B0639"
+  data-slot="1" data-a="teacher" data-target="적용 범위"
+  data-teacher="늘었다" data-model="줄었다"
+  data-votes="3" data-runs="14">
+ <h3>6. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0639 · 라벨 2번째 ·
+   <b>3/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>⑥<del> 제39조제1항에 따라 기술료를 징수하는</del> 연구개발성과<del>과제</del>의 <del>주</del>관연구개발<del>기관</del> <del>또는</del> <del>공동연구개발기관은</del> <del>다음 각 호</del>에 해당하<del>는</del> 경우에는 해당 연구개발과제의 <del>공동</del>연구개발기관, 실시기관 등과 협의하여 <del>제1항부터 제2항의 규정에 따라 취득한 </del>연구개발성과를 <del>그 연구개발과제의 공동</del>연구개발기관, 실시기관 또는 다른 적정한 기관(국내에 있는 기관을 우선적으로 고려하여야 한다)에게 양<del>여</del>할 수 있다.<del> 다만, 연구개발기관이 연구개발성과에 대한 권리를 포기한 경우에는 해당 연구개발과제를 수행한 연구책임자에게 무상으로 양여할 수 있다.</del></div>
+   <div><div class="lab">개정 후</div>⑥ 연구개발성과<ins>소유기관</ins>의 <ins>장은 이 요령, 기타 </ins>관<ins>련 규정이나 협약에서 별도로 정한 </ins>연구개발<ins>성과</ins> <ins>양도</ins> <ins>제한</ins> <ins>사유</ins>에 해당하<ins>지 아니한</ins> 경우에는 해당 연구개발과제의 <ins>다른 </ins>연구개발기관, 실시기관 등과 협의하여 연구개발성과를 연구개발기관, 실시기관 또는 다른 적정한 기관(국내에 있는 기관을 우선적으로 고려하여야 한다)에게 양<ins>도</ins>할 수 있다.</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">기술료를 징수하는 연구개발성과과제로 한정 → 연구개발성과소유기관의 장이 양도 제한 사유에 해당하지 않으면 가능하도록 확대</div>
+  <div class="lab">direct_impact</div><div class="txt">연구개발성과소유기관의 장은 양도 제한 사유에 해당하지 않으면 다른 연구개발기관 등과 협의하여 연구개발성과를 양도할 수 있게 되었고, 양도 제한 사유도 긍정적 요건에서 부정적 요건으로 바뀌었다. 반면, 연구개발기관이 권리를 포기한 경우 연구책임자에게 무상 양여할 수 있었던 조항은 사라져 연구책임자의 무상 양여 수령 가능성이 없어졌으며, 주관연구개발기관 또는 공동연구개발기관이 직접 양여하던 구조에서 연구개발성과소유기관의 장이 양도 주체가 되는 것으로 변경되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">&#x27;다음 각 호에 해당하는 경우에는&#x27; 및 &#x27;다만, 연구개발기관이 연구개발성과에 대한 권리를 포기한 경우에는&#x27; → 해당 규정 없음</div>
+  <div class="lab">direct_impact</div><div class="txt">연구개발성과소유기관의 장이 연구개발성과를 양도할 수 있는 주체로 명시되고, 양도 가능 사유가 &#x27;다음 각 호&#x27;에 따라 협의·양도 가능에서 &#x27;다른 연구개발기관, 실시기관 등과 협의&#x27; 및 &#x27;연구개발기관이 연구개발성과에 대한 권리를 포기한 경우&#x27;로 구체화·제한되었으며, 양도 절차도 명시되지 않아 연구개발성과를 양도할 수 있는 주체와 받을 수 있는 주체의 범위가 축소되고 구체적 절차 없이 양도 가능 여부가 달라졌다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="7" data-id="motie_industrial_tech_guideline_pair:before_2022-B0748"
+  data-slot="0" data-a="teacher" data-target="적용 범위"
+  data-teacher="늘었다" data-model="줄었다"
+  data-votes="2" data-runs="14">
+ <h3>7. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0748 · 라벨 1번째 ·
+   <b>2/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>1<del>5</del>. 거짓이나 그 밖<del>에</del> 부정한 방법으로 연구개발과제를 수행<del>한</del> <del>경우</del></div>
+   <div><div class="lab">개정 후</div>1<ins>0</ins>. 거짓이나 그 밖<ins>의</ins> 부정한 방법으로 연구개발과제를 <ins>신청하거나 이를 </ins>수행<ins>하는</ins> <ins>행위</ins></div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">연구개발과제를 수행한 경우 → 연구개발과제를 신청하거나 이를 수행하는 행위</div>
+  <div class="lab">direct_impact</div><div class="txt">연구개발과제를 신청하거나 수행하는 자는 신청 단계에서의 부정 행위도 규제 대상에 포함되어 부담이 늘었으며, 연구개발과제 관리 기관은 신청 단계의 부정 행위에 대해서도 제재 근거를 확보하게 되었다</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">연구개발과제를 수행한 경우 → 연구개발과제를 신청하거나 이를 수행하는 행위</div>
+  <div class="lab">direct_impact</div><div class="txt">이 조항은 이제 연구개발과제를 신청하거나 이를 수행하는 행위 중 거짓이나 부정한 방법으로 이루어진 경우에만 적용되며, 과제 수행 자체는 이 조항의 적용 대상에서 제외된다. 또한 부정 행위의 주체가 과제 수행자에서 신청·수행자로 변경되어, 적용 대상이 되는 행위의 성격이 달라졌다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="8" data-id="motie_industrial_tech_guideline_pair:before_2022-B0347"
+  data-slot="0" data-a="model" data-target="적용 범위"
+  data-teacher="늘었다" data-model="줄었다"
+  data-votes="1" data-runs="14">
+ <h3>8. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0347 · 라벨 1번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div>4.<del> 연구개발을 주목적으로 하지 않는</del> 기반 구축사업, 고등교육재정지원사업, 인력 양성 사업 및 학술활동사업 관련 연구개발과제</div>
+   <div><div class="lab">개정 후</div>4. 기반 구축사업, 고등교육재정지원사업, 인력 양성 사업 및 학술활동사업 관련 연구개발과제</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">연구개발을 주목적으로 하지 않는 기반 구축사업 → 기반 구축사업</div>
+  <div class="lab">direct_impact</div><div class="txt">개정 전에는 연구개발을 주목적으로 하지 않는 기반 구축사업도 이 조항의 적용 대상에 포함되었으나, 개정 후에는 연구개발이 주목적이 아닌 기반 구축사업은 이 조항에서 제외되어 적용 대상이 축소되었다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">연구개발을 주목적으로 하지 않는 기반 구축사업 → 기반 구축사업</div>
+  <div class="lab">direct_impact</div><div class="txt">기반 구축사업 관련 연구개발과제 수행자의 경우, 개정 전에는 연구개발을 주목적으로 하지 않는 기반 구축사업 관련 과제만 이 조항의 대상에 포함되었으나, 개정 후에는 기반 구축사업 관련 과제 전반으로 적용 범위가 넓어졌다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article><article class="card" data-i="9" data-id="motie_industrial_tech_guideline_pair:before_2022-B0737"
+  data-slot="0" data-a="model" data-target="적용 범위"
+  data-teacher="늘었다" data-model="줄었다"
+  data-votes="1" data-runs="14">
+ <h3>9. 적용 범위
+   <small>motie_industrial_tech_guideline_pair:before_2022-B0737 · 라벨 1번째 ·
+   <b>1/14</b>개 실험이 같은 답을 냈다</small></h3>
+ <div class="diff"><div><div class="lab">개정 전</div><del>4의2</del>. 정당한 사유 없이 지식재산권 자료를 제출하지 않거나 연구개발성과인 지식재산권 자료를 다중제출 등 부정한 방법으로 제출한 경우</div>
+   <div><div class="lab">개정 후</div><ins>15</ins>.<ins> 연구개발과제에 따른 성과와 관련하여</ins> 정당한 사유 없이 지식재산권 자료를 제출하지 않거나 연구개발성과인 지식재산권 자료를 다중제출 등 부정한 방법으로 제출한 경우</div></div>
+ <div class="sides"><div class="side">
+  <div class="tag">갑</div>
+  <div class="dir">줄었다</div>
+  <div class="lab">근거</div><div class="txt">4의2. 정당한 사유 없이 지식재산권 자료를 제출하지 않거나 → 15. 연구개발과제에 따른 성과와 관련하여 정당한 사유 없이 지식재산권 자료를 제출하지 않거나</div>
+  <div class="lab">direct_impact</div><div class="txt">연구개발과제 수행자는 지식재산권 자료를 정당한 사유 없이 제출하지 않거나 다중제출 등 부정한 방법으로 제출한 경우 제재 대상이 되는 범위가 &#x27;연구개발과제에 따른 성과&#x27;와 관련된 경우로 한정되어, 과제와 직접 관련 없는 성과에 대한 제출 요구로부터 보호받는 범위가 넓어졌다.</div>
+</div><div class="side">
+  <div class="tag">을</div>
+  <div class="dir">늘었다</div>
+  <div class="lab">근거</div><div class="txt">정당한 사유 없이 → 연구개발과제에 따른 성과와 관련하여 정당한 사유 없이</div>
+  <div class="lab">direct_impact</div><div class="txt">연구개발과제를 수행하는 기관 또는 연구자는 지식재산권 자료 제출 의무가 연구개발과제 성과와 명시적으로 연결되어 의무 적용 맥락이 더 분명해졌고, 연구개발과제를 관리·감독하는 기관은 지식재산권 자료 미제출 또는 부정제출에 대한 규율 근거가 연구개발과제 성과와 관련하여 명확해져 적용 범위가 더 분명해졌다.</div>
+</div></div>
+ <div class="ask">
+   <button data-v="갑">갑이 맞다</button>
+   <button data-v="을">을이 맞다</button>
+   <button data-v="둘다">둘 다 말이 된다</button>
+   <button data-v="둘다틀림">둘 다 틀렸다</button>
+   <input class="memo" placeholder="메모 (왜 그렇게 봤나)">
+ </div>
+</article>
+
+<script>
+const KEY = "H_eval_label_review";
+let ans = {};
+try { ans = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { ans = {}; }
+let mode = "tsv";
+
+function rows() {
+  return [...document.querySelectorAll(".card")].map(c => {
+    const a = ans[c.dataset.i] || {};
+    // 갑·을은 화면 자리다. 저장할 때 교사/모델로 되돌린다.
+    let who = a.v || "";
+    if (who === "갑") who = c.dataset.a === "teacher" ? "교사" : "모델";
+    else if (who === "을") who = c.dataset.a === "teacher" ? "모델" : "교사";
+    return {
+      no: c.dataset.i, id: c.dataset.id, slot: c.dataset.slot,
+      대상: c.dataset.target, 교사방향: c.dataset.teacher, 모델방향: c.dataset.model,
+      같은답: c.dataset.votes + "/" + c.dataset.runs,
+      판정: who, 메모: (a.m || "").replace(/\t/g, " ")
+    };
+  });
+}
+function dump() {
+  const r = rows();
+  document.getElementById("out").value = mode === "json"
+    ? JSON.stringify(r, null, 1)
+    : [Object.keys(r[0] || {}).join("\t"),
+       ...r.map(x => Object.values(x).join("\t"))].join("\n");
+  document.getElementById("cnt").textContent =
+    r.filter(x => x.판정).length + "/" + r.length;
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(ans)); dump(); }
+
+document.querySelectorAll(".card").forEach(c => {
+  const i = c.dataset.i, a = ans[i] || {};
+  c.querySelectorAll(".ask button").forEach(b => {
+    if (a.v === b.dataset.v) { b.classList.add("on"); c.classList.add("done"); }
+    b.onclick = () => {
+      c.querySelectorAll(".ask button").forEach(x => x.classList.remove("on"));
+      b.classList.add("on"); c.classList.add("done");
+      ans[i] = Object.assign({}, ans[i], {v: b.dataset.v}); save();
+    };
+  });
+  const m = c.querySelector(".memo");
+  m.value = a.m || "";
+  // 글자마다 다시 그리면 포커스를 잃는다. 저장만 하고 화면은 그대로 둔다.
+  m.oninput = () => { ans[i] = Object.assign({}, ans[i], {m: m.value});
+                      localStorage.setItem(KEY, JSON.stringify(ans)); };
+});
+document.getElementById("tsv").onclick = () => { mode = "tsv"; dump(); };
+document.getElementById("json").onclick = () => { mode = "json"; dump(); };
+document.getElementById("reset").onclick = () => {
+  if (confirm("판정을 전부 지운다")) { ans = {}; localStorage.removeItem(KEY); location.reload(); }
+};
+// 브라우저 저장소만으로는 부족하다. 저장소를 비우거나 다른 기기에서 열면 사라진다.
+document.getElementById("save").onclick = () => {
+  const blob = new Blob([document.getElementById("out").value],
+                        {type: "text/plain;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "답." + (mode === "json" ? "json" : "tsv");
+  a.click();
+};
+dump();
+</script>
