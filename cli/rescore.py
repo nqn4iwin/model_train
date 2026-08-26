@@ -37,12 +37,24 @@ ROOT = Path(__file__).resolve().parents[1]
 HOLDOUT = "data/20260811__annotate__v2.2/holdout.jsonl"
 
 
-def row_for(name: str, summary: dict, prior: dict) -> dict:
-    """`sweep.py`가 만드는 것과 같은 모양의 표 한 줄. 설정에서 메모와 방식 이름을 붙인다."""
-    path = ROOT / "configs" / f"{name}.json"
+def row_for(name: str, summary: dict, prior: dict,
+            config_name: str | None = None) -> dict:
+    """`sweep.py`가 만드는 것과 같은 모양의 표 한 줄. 설정에서 메모와 방식 이름을 붙인다.
+
+    `config_name`은 **설정 파일을 찾을 이름**이다. 보통 줄 이름과 같지만, 같은 어댑터를
+    다른 조건으로 또 채점한 변종 줄(`...-3shot`)은 설정 파일이 따로 없으므로 원래 실험
+    이름을 넘긴다. 안 넘기면 `note`와 `peft_type`이 빈칸이 되어 **표에서 그 줄만 어떤
+    학습법인지 안 보인다.**
+    """
+    path = ROOT / "configs" / f"{config_name or name}.json"
     config = read_config(path) if path.exists() else {}
+    # 변종 줄은 설정의 메모를 그대로 물려받는다. 그러면 **두 줄이 똑같은 메모를 달고
+    # 나란히 앉아** 어느 쪽이 무엇인지 표에서 안 보이므로, 꼬리를 앞에 박아 둔다.
+    note = config.get("note", "")
+    if config_name and config_name != name:
+        note = f"[{name.removeprefix(config_name).lstrip('-')}] {note}".strip()
     return {"stage": "끝", "verdict": summary["verdict"],
-            "note": config.get("note", ""),
+            "note": note,
             "peft_type": config.get("peft", {}).get("peft_type", "-"),
             **summary["AM_rates"], "평균": summary["AM_mean"],
             "에폭": config.get("num_train_epochs"),
@@ -124,7 +136,7 @@ def main() -> None:
     # 한 표에 앉는다(2026-08-24에 실제로 그럴 뻔했다).
     folder = ruler_name(ROOT / args.data)
     stem = table_stem(folder)
-    print(f"자: {args.data}  ({len(teacher)}건) -> runs/*/{folder}/ -> runs/{stem}.md\n")
+    print(f"자: {args.data}  ({len(teacher)}건) -> runs/*/{folder}*/ -> runs/{stem}.md\n")
 
     # 전에 만든 표를 바탕으로 삼는다. **`못 돌림` 줄은 기록이 없어서 여기서만 나온다** --
     # 새로 짓겠다고 버리면 학습 자체가 실패한 열 개가 표에서 사라진다.
@@ -132,9 +144,35 @@ def main() -> None:
     table = json.loads(table_path.read_text(encoding="utf-8")) if table_path.exists() else {}
 
     changed, same, broken = [], 0, []
-    for records_path in sorted(args.runs.glob(f"*/{folder}/records.jsonl")):
-        name = records_path.parents[1].name
+    # 홀드아웃 경로 -> 자 이름. 같은 파일을 채점 기록 수백 개마다 다시 읽지 않는다.
+    rulers: dict[str, str] = {}
+
+    for records_path in sorted(args.runs.glob("*/eval-*/records.jsonl")):
+        eval_folder = records_path.parent.name
+        run = records_path.parents[1].name
         summary_path = records_path.parent / "summary.json"
+        old = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
+
+        # **어느 자로 잰 값인지는 폴더 이름이 아니라 `summary.json`의 `data`가 정한다.**
+        # 폴더 이름을 앞맞추기로 가르면 `eval-mof`가 `eval-mof-motie`까지 집어삼켜
+        # **37건 자 표에 135건 자 값이 앉는다** -- 2026-08-24에 겪은 것과 같은 종류의
+        # 사고다. `data`에는 그 채점이 실제로 읽은 홀드아웃 경로가 적혀 있고, 채점
+        # 기록 511개에 하나도 빠짐없이 들어 있다(2026-08-26 확인).
+        #
+        # 이렇게 두면 **채점 변종이 새로 생겨도 코드를 안 고친다.** 폴더 이름이
+        # `eval-mof-motie-3shot`이든 `-e1`이든, 같은 자로 쟀으면 같은 표에 앉는다.
+        used = old.get("data")
+        if used:
+            if used not in rulers:
+                rulers[used] = ruler_name(ROOT / used)
+            if rulers[used] != folder:
+                continue
+        elif eval_folder != folder:
+            continue
+
+        # 자 이름 뒤에 남은 꼬리가 채점 변종이다 -- `eval-mof-motie-3shot` -> `-3shot`.
+        # 표에서 줄을 가르는 데만 쓰고, 설정 파일은 실험 폴더 이름으로 찾는다.
+        name = run + eval_folder.removeprefix(folder)
         records = [json.loads(line) for line
                    in records_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         if not records:
@@ -156,7 +194,6 @@ def main() -> None:
         target = (json.loads(ran.read_text(encoding="utf-8")).get("target")
                   if ran.exists() else None)
         fresh = regrade(records, teacher, label_free=(target == "sentence"))
-        old = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
 
         # AM 값이 달라지면 채점 규칙이 바뀐 것이다. 판정 이름표만 고치려던 작업이
         # 점수까지 건드렸다는 뜻이라, 조용히 넘기면 안 된다.
@@ -170,7 +207,7 @@ def main() -> None:
                             fresh["teacher_agreement"], fresh["skew"], fresh["judgements"]))
 
         merged = {**old, **fresh}
-        table[name] = row_for(name, merged, table.get(name, {}))
+        table[name] = row_for(name, merged, table.get(name, {}), config_name=run)
         if args.write:
             summary_path.write_text(
                 json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
