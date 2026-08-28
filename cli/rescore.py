@@ -25,7 +25,7 @@ from pathlib import Path
 from cli.sweep import table_stem, write_table
 from sft.records import ruler_name
 from sft.scoring import (KEYS, collapsed, label_agreement, layered_agreement,
-                        skew, verdict)
+                        score_blind, skew, verdict)
 from sft.training import read_config
 
 # cli/ 안에 있으므로 저장소 뿌리는 한 단계 위다.
@@ -70,6 +70,39 @@ def row_for(name: str, summary: dict, prior: dict,
             "안 멈춤": summary.get("rambled_outputs"),
             # 걸린 시간은 기록에 안 남아 있다. 전에 만든 표에 있으면 그것을 쓴다.
             "분": prior.get("분", "-")}
+
+
+def reparse(records: list[dict], label_free: bool = False) -> tuple[list[dict], int]:
+    """저장된 점수를 버리고 **원문(`raw`)에서 다시 매긴다.** GPU도 모델도 안 쓴다.
+
+    **이 도구는 원래 저장된 점수를 다시 모으기만 한다**(`regrade`의 `r["scores"][k]`).
+    그래서 `sft.scoring.parse_output`을 고쳐도 표에 안 닿는다 -- 2026-08-27에 파서를
+    갈아 끼우고 `--write`를 돌렸더니 119줄이 전부 "그대로"로 나온 자리다.
+
+    **`records.jsonl`은 안 고친다.** 거기 든 `raw`가 원본이고 점수는 그것에서 언제든
+    다시 나온다. 파생값을 원본 파일에 덮어쓰면 다음에 파서를 또 고칠 때 되돌릴 곳이
+    없어진다. 고쳐 쓰는 것은 `summary.json`과 표뿐이다.
+
+    **`restatement_ratio`는 다시 안 잰다.** 그 값은 원문 블록이 있어야 나오는데 이
+    도구는 홀드아웃에서 교사 라벨만 읽는다. 새로 건져 낸 문장은 그 칸이 `None`으로
+    남는다 -- 합격 판정에 안 쓰는 값이라 표는 안 흔들린다.
+    """
+    fresh, moved = [], 0
+    for record in records:
+        raw = record.get("raw")
+        if raw is None:          # 원문이 없는 옛 기록은 손대지 않는다
+            fresh.append(record)
+            continue
+        scored = score_blind(raw, label_free)
+        parsed = scored.pop("parsed") or {}
+        if scored != record.get("scores"):
+            moved += 1
+        fresh.append({**record, "scores": scored,
+                      "judgement": str(parsed.get("judgement", "") or ""),
+                      "labels": parsed.get("labels"),
+                      "impacts": parsed.get("impacts"),
+                      "direct_impact": parsed.get("direct_impact")})
+    return fresh, moved
 
 
 def regrade(records: list[dict], teacher: dict[str, list] | None = None,
@@ -129,6 +162,9 @@ def main() -> None:
                     help="교사 라벨을 가져올 홀드아웃. 얼려둔 것을 그대로 쓴다")
     ap.add_argument("--write", action="store_true",
                     help="summary.json을 실제로 고친다. 기본은 보여주기만 한다")
+    ap.add_argument("--reparse", action="store_true",
+                    help="저장된 점수 대신 원문에서 다시 매긴다."
+                         " **파서를 고친 날에만 쓴다** -- AM 값이 움직인다")
     args = ap.parse_args()
     teacher = read_teacher(ROOT / args.data)
     # **`--data` 하나가 셋을 다 정한다** -- 교사 라벨을 어디서 가져올지, 어느 채점
@@ -144,6 +180,7 @@ def main() -> None:
     table = json.loads(table_path.read_text(encoding="utf-8")) if table_path.exists() else {}
 
     changed, same, broken = [], 0, []
+    reparsed = 0
     # 홀드아웃 경로 -> 자 이름. 같은 파일을 채점 기록 수백 개마다 다시 읽지 않는다.
     rulers: dict[str, str] = {}
 
@@ -193,11 +230,19 @@ def main() -> None:
         ran = records_path.parents[1] / "config.json"
         target = (json.loads(ran.read_text(encoding="utf-8")).get("target")
                   if ran.exists() else None)
+        moved = 0
+        if args.reparse:
+            records, moved = reparse(records, label_free=(target == "sentence"))
+            reparsed += moved
         fresh = regrade(records, teacher, label_free=(target == "sentence"))
 
         # AM 값이 달라지면 채점 규칙이 바뀐 것이다. 판정 이름표만 고치려던 작업이
         # 점수까지 건드렸다는 뜻이라, 조용히 넘기면 안 된다.
-        if old.get("AM_rates") and old["AM_rates"] != fresh["AM_rates"]:
+        #
+        # **`--reparse`일 때는 달라지는 것이 목적이다.** 그때는 사고가 아니라 몇 건이
+        # 움직였는지를 세어 맨 끝에 한 줄로 알린다. 그래도 검사를 끄지는 않는다 --
+        # 원문을 다시 안 읽었는데도 값이 달라졌다면 그건 여전히 사고다.
+        if old.get("AM_rates") and old["AM_rates"] != fresh["AM_rates"] and not args.reparse:
             broken.append((name, f"AM이 달라졌습니다 {old['AM_rates']} -> {fresh['AM_rates']}"))
 
         if old.get("verdict") == fresh["verdict"]:
@@ -219,11 +264,21 @@ def main() -> None:
             print(f"  {name:<28} {before:<6} {after:<6} {agree:>7.1%} "
                   f"{(tilt or 0):>6.1%}  {dist}")
     print(f"\n그대로인 것 {same}개")
+    if args.reparse:
+        print(f"원문에서 다시 매겨 AM이 움직인 기록 {reparsed}건"
+              " -- **이 표의 AM 값은 새 파서의 값이라 옛 표와 나란히 놓으면 안 됩니다.**")
 
     if broken:
         print(f"\n! 확인이 필요한 것 {len(broken)}개")
         for name, why in broken:
             print(f"  {name:<28} {why}")
+        # **AM이 달라졌다는 것이 줄줄이 나오면 십중팔구 `--reparse`를 빼먹은 것이다.**
+        # `records.jsonl`에 저장된 `scores`는 그 채점을 돌리던 날의 파서로 매긴 값이고,
+        # 2026-08-27에 `parse_output`이 바뀌었다. 그대로 `--write` 하면 표가 옛 값으로
+        # 되돌아간다. 되돌린 표는 `--reparse --write`로 다시 지으면 살아난다.
+        if not args.reparse and any("AM이 달라졌습니다" in why for _, why in broken):
+            print("\n  ** `--reparse`를 안 붙이셨습니다. **"
+                  " 저장된 점수는 옛 파서의 값이라 표가 되돌아갑니다.")
 
     if args.write:
         write_table(table, stem, args.data)
