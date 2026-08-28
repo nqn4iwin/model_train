@@ -81,7 +81,7 @@ bash run2_resume.sh --status     # "안 됨" 이 몇 개인지 본다
 ### prerun 쪽 frod 는 어떻게 되나
 
 `runs/frod/` 는 표에서 `못 돌림` 으로 잡힌다. 자리 부족으로 죽었다가 한 장을 혼자 줘서
-되살린 이력이 있는데, **그 결과가 1건짜리 채점 찌꺼기로 남아 있어**(`runs/frod/eval/`,
+되살린 이력이 있는데, **그 결과가 1건짜리 채점 찌꺼기로 남아 있어**(`runs/frod/eval-mof/`,
 `docs/TODO.md` 에 있는 항목) 정상 결과로 안 잡힌다. 어댑터가 남아 있는지부터 본다.
 
 ```bash
@@ -157,7 +157,7 @@ sed -i '1i configs/frod-run2A.json\nconfigs/frod-run2B.json' configs/run2-order.
 물러나기는 하지만 이어 돌리는 장치(학습만 끝난 것을 채점만 붙이는 것)가 없다.
 **끊긴 것을 이을 때는 언제나 `run2_resume.sh` 다.**
 
-**`cli.sweep --all` 을 부르지 않는다.** `eval/summary.json` 이 없는 설정을 전부 "안
+**`cli.sweep --all` 을 부르지 않는다.** `eval-*/summary.json` 이 없는 설정을 전부 "안
 돌린 것" 으로 보고 **166개를 처음부터 다시 학습시킨다.**
 
 **`--redo` 를 붙이지 않는다.** 이미 있는 어댑터와 기록을 덮어쓴다.
