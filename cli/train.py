@@ -231,6 +231,14 @@ def main() -> None:
             per_device_train_batch_size=config.get("per_device_train_batch_size", 1),
             gradient_accumulation_steps=config.get("gradient_accumulation_steps", 8),
             learning_rate=config.get("learning_rate", 2e-4),
+            # **2026-08-27에 설정으로 끌어올렸다.** 그전에는 안 적어서 라이브러리
+            # 기본값 `linear`가 걸렸는데, 그것은 학습이 진행될수록 학습률을 0까지
+            # 직선으로 낮춘다. **그래서 학습 길이가 다르면 같은 `learning_rate`가
+            # 같은 값이 아니다** -- 3,178건 3에폭(1,194스텝)과 1,655건 3에폭
+            # (622스텝)은 같은 2e-4로 시작해도 스텝마다 실제로 쓰인 값이 다르다.
+            # 데이터 크기가 다른 라운드끼리 학습률을 견주는 자리 전체에 걸린다.
+            # 기본값을 `linear`로 두어 **지금까지 돌아간 것과 똑같이 돌게** 했다.
+            lr_scheduler_type=config.get("lr_scheduler_type", "linear"),
             num_train_epochs=config.get("num_train_epochs", 3),
             max_steps=max_steps,
             logging_steps=config.get("logging_steps", 5),

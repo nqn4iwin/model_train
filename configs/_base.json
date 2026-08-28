@@ -1,6 +1,6 @@
 {
   "name": "lora-full-rules",
-  "note": "기준 조건. 다른 설정은 extends로 이것을 물려받고 바뀌는 칸만 적는다. save_total_limit이 3인 것은 에폭별 체크포인트를 남겨, 붕괴가 몇 에폭째에 일어났는지 재학습 없이 보려는 것이다.",
+  "note": "기준 조건. 다른 설정은 extends로 이것을 물려받고 바뀌는 칸만 적는다. save_total_limit이 3인 것은 에폭별 체크포인트를 남겨, 붕괴가 몇 에폭째에 일어났는지 재학습 없이 보려는 것이다. lr_scheduler_type을 적어 두는 것은 값을 바꾸려는 것이 아니라 안 적으면 라이브러리 기본값이 조용히 걸리기 때문이다 -- linear는 학습이 진행될수록 학습률을 0까지 낮추므로, 데이터 크기가 다르면 같은 learning_rate가 같은 값이 아니다.",
   "model": "KORMo-Team/KORMo-10B-base",
   "model_revision": "main",
   "data": "data/20260811__annotate__v2.2/train.jsonl",
@@ -13,6 +13,7 @@
   "per_device_train_batch_size": 1,
   "gradient_accumulation_steps": 8,
   "learning_rate": 0.0002,
+  "lr_scheduler_type": "linear",
   "num_train_epochs": 3,
   "logging_steps": 5,
   "save_strategy": "epoch",
