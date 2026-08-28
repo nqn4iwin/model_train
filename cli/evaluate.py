@@ -124,6 +124,16 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     stream = (out_dir / "records.jsonl").open("w", encoding="utf-8")
 
+    # `sentence` 조건은 라벨을 구조적으로 안 낸다. **출력만 보고 정하면 붕괴와
+    # 구별이 안 되므로** 실제로 돌아간 설정에서 읽는다(`cli/train.py`가 남긴다).
+    #
+    # **2026-08-27에 이 줄이 위로 올라왔다.** 전에는 집계할 때만 쓰여서 반복문 뒤에
+    # 있었는데, `score_blind`가 이 값을 받게 되면서 채점 한 건마다 필요해졌다.
+    ran_config = out_dir.parent / "config.json"
+    target = (json.loads(ran_config.read_text(encoding="utf-8")).get("target")
+              if ran_config.exists() else None)
+    label_free = target == "sentence"
+
     started = time.time()
     graded: list[dict] = []
     for turn in range(1, args.repeat + 1):
@@ -143,7 +153,7 @@ def main() -> None:
             # 여는 중괄호를 갖춘 온전한 모양이 되어 AM1이 제대로 매겨진다.
             raw = args.prefill + tokenizer.decode(fresh, skip_special_tokens=True)
 
-            marked = score_blind(raw)
+            marked = score_blind(raw, label_free)
             parsed = marked.pop("parsed") or {}
             record = {
                 "id": row["id"], "turn": turn, "scores": marked,
@@ -182,17 +192,12 @@ def main() -> None:
     # positive 26 · negative 11이므로 무조건 negative를 내면 29.7%가 나온다.
     matched = sum(1 for r in graded if r["judgement"] == r.get("teacher_judgement"))
     is_collapsed = collapsed(said)
-    # `sentence` 조건은 라벨을 구조적으로 안 낸다. **출력만 보고 정하면 붕괴와
-    # 구별이 안 되므로** 실제로 돌아간 설정에서 읽는다(`cli/train.py`가 남긴다).
-    ran_config = out_dir.parent / "config.json"
-    target = (json.loads(ran_config.read_text(encoding="utf-8")).get("target")
-              if ran_config.exists() else None)
     labels = label_agreement([(r.get("labels"), r.get("teacher_labels")) for r in graded],
-                             label_free=(target == "sentence"))
+                             label_free=label_free)
     # 판정 -> 대상 -> 방향 -> 쌍 네 층. **파싱이 깨진 건은 원문에서 건져 센다.**
     # 위 두 값(`teacher_agreement`·`label_agreement`)은 안 건드린 판이라 그대로 두고,
     # 이건 옆에 따로 세운다 -- 값을 고치면 지난 표와 비교가 끊긴다.
-    layered = layered_agreement(graded, label_free=(target == "sentence"))
+    layered = layered_agreement(graded, label_free=label_free)
     summary = {
         "model": args.model, "model_revision": args.model_revision,
         "adapter": args.adapter, "data": args.data, "rules": not args.no_rules,

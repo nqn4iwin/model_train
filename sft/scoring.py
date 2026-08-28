@@ -5,10 +5,18 @@
 API를 부르는 모듈이라 API 키를 요구하고, 학습 서버에는 그 레포 자체가 없다. 채점에
 실제로 쓰이는 것은 순수 함수 몇 개뿐이므로 그것만 가져왔다.
 
-**한 글자도 바꾸지 않았다.** 채점 로직이 갈라지면 교사 값과 학생 값을 한 표에
-못 놓는다. `rubric.md`가 적어둔 사고 -- 이름이 같은데 잣대가 다르면 언젠가 누군가
-반드시 한 줄에 놓는다 -- 가 여기서도 그대로 성립한다. 원본이 바뀌면 이쪽도 바꾸고,
-`test_scoring.py`가 두 벌이 같은 답을 내는지 대조한다.
+**2026-08-27 까지는 한 글자도 안 바꿨다. 그날 `parse_output` 하나가 갈라졌다.**
+채점 로직이 갈라지면 교사 값과 학생 값을 한 표에 못 놓는다. `rubric.md`가 적어둔
+사고 -- 이름이 같은데 잣대가 다르면 언젠가 누군가 반드시 한 줄에 놓는다 -- 가 여기서도
+그대로 성립하므로, **갈라진 자리를 여기 적어 둔다.**
+
+    parse_output   깨진 출력을 고쳐 읽는다. 원본은 못 읽고 0점을 준다
+                   135건 자에서 84.3% -> 95.5%. 사유와 실측은 그 함수의 설명에 있다
+
+**그러므로 `test_scoring.py`의 원본 대조는 이제 AM1 에서 어긋난다.** 어긋남이 전부
+"원본 0점 -> 옮긴 것 1점" 방향인지 확인하고 넘어가는 것이지, 어긋남이 없어야 하는
+것이 아니다. 나머지 함수는 그대로이므로 대조를 버리지 않는다. **`data_collect` 쪽에
+이 파서를 옮길지는 아직 안 정했다**(`docs/TODO.md`).
 
 가져온 곳:
     run.py       TARGETS · DIRECTIONS · parse_output · label_pairs · impact_subjects
@@ -55,20 +63,138 @@ KEYS = ("AM1", "AM2", "AM3", "AM6s", "AM8s")
 RESTATEMENT_THRESHOLD = 0.60
 
 
-def parse_output(text: str) -> dict | None:
-    """모델 출력에서 JSON 객체 하나를 꺼낸다. 코드펜스는 벗긴다."""
+_DECODER = json.JSONDecoder()
+
+# 모델이 **문자열 구분자 자리에** 쓴 둥근 따옴표. 문장 안에 든 둥근 따옴표는 JSON 에
+# 아무 문제가 없으므로 건드리면 안 된다 -- 그래서 다른 수를 다 쓴 뒤 마지막에 한 번만
+# 갈아 보고, 그래도 안 읽히면 포기한다. 실측 2건짜리 자리다.
+_SMART_QUOTES = {"\u201c": '"', "\u201d": '"'}
+
+
+def _strip_fence(text: str) -> str:
+    """코드펜스(```)를 벗긴다. 옛 파서에서 그대로 가져온 부분이다."""
     cleaned = text.strip()
     if cleaned.startswith("```"):
-        cleaned = cleaned.split("```")[1]
-        cleaned = cleaned.split("\n", 1)[1] if cleaned.startswith("json") else cleaned
-    start, end = cleaned.find("{"), cleaned.rfind("}")
-    if start < 0 or end <= start:
+        parts = cleaned.split("```")
+        if len(parts) > 1:
+            cleaned = parts[1]
+            if cleaned.startswith("json"):
+                cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+    return cleaned
+
+
+def _balanced(text: str) -> str | None:
+    """첫 `{`부터 읽어 **괄호가 맞는 토막**을 낸다. 못 만들면 None.
+
+    두 가지 일을 한다.
+
+        온전히 닫혔으면   그 자리에서 끊는다 -- 뒤에 무엇이 붙어 있든 안 본다
+        닫히다 말았으면   쓰다 만 꼬리를 지우고 열어 둔 것을 **역순으로** 닫는다
+
+    **역순이 핵심이다.** `{ "labels": [ {` 까지 쓰다 끊긴 출력에 `}` 만 붙이면 여전히
+    깨진다 -- 배열을 `]` 로 닫아야 한다. 2026-08-27 에 `}` 만 붙여 재보고 587건이
+    안 살아난 것이 이 자리였다.
+    """
+    start = text.find("{")
+    if start < 0:
         return None
+    text = text[start:]
+    stack: list[str] = []
+    in_string = escaped = False
+    for position, char in enumerate(text):
+        if escaped:
+            escaped = False
+            continue
+        if in_string:
+            if char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append(char)
+        elif char in "}]":
+            if stack:
+                stack.pop()
+            if not stack:
+                return text[:position + 1]
+    # 여기까지 왔으면 닫히지 않은 것이다. 모델이 쓰다 만 자리를 정리한다.
+    patched = text.rstrip()
+    if in_string:
+        patched += '"'
+    # 값 없이 칸 이름만 쓰다 끊긴 꼬리(`, "대상": `)를 통째로 지운다.
+    patched = re.sub(r',\s*"[^"]*"\s*:\s*$', "", patched)
+    patched = re.sub(r"[,:]\s*$", "", patched)
+    for opener in reversed(stack):
+        patched += "}" if opener == "{" else "]"
+    return patched
+
+
+def parse_output(text: str) -> dict | None:
+    """모델 출력에서 JSON 객체 하나를 꺼낸다. 코드펜스는 벗기고, **깨진 것은 고쳐 읽는다.**
+
+    **2026-08-27 에 갈아 끼웠다. 그전에는 첫 `{` 부터 마지막 `}` 까지를 통째로 잘라
+    한 번에 읽었다.** 그 방식이 지는 자리가 셋이었다.
+
+        이중 객체     `{...}{...}` 를 하나로 잘라 읽으려다 깨진다
+        미완결       `{ "labels": [ {` 까지 쓰다 끊긴 것을 아예 못 읽는다
+        둥근 따옴표   구분자 자리에 `\u201d` 가 오면 깨진다
+
+    **이중 객체는 모델 잘못이라기 어렵다.** 학습 정답(`sft.formatting.build_completion`)
+    은 한 줄짜리 압축 JSON 인데 `cli/evaluate.py` 의 프리필은 여러 줄 들여쓴 모양으로
+    출발시킨다. 그래서 모델이 **여러 줄 모양으로 한 번 닫고, 학습대로 한 줄 모양을 또
+    낸다.** 앞의 것은 흠 없이 완결된 답이다.
+
+    135건 자 실측(14,985건 · 실험 111개):
+
+        옛 파서 12,635건 (84.3%)  ->  새 파서 14,304건 (95.5%)
+
+        깨진 2,350건의 내역   이중 객체 243 · 닫히다 만 것 1,424 · 둥근 따옴표 2
+                             못 읽음 681 (대부분 학습 전 기준선이 예시를 되풀이한 것)
+        건져 낸 칸           판정 1,669 · labels 1,216 · **direct_impact 문장 1,324**
+
+    **회귀는 0건이다.** 옛 파서가 읽던 12,635건이 하나도 안 깨졌고, 읽은 값이 달라진
+    것도 없다. 새 파서는 옛 파서가 지던 자리에서만 이긴다.
+
+    ── 이 교체가 끊는 것 ──────────────────────────────────────────────
+    **AM1 이 곧 "이 함수가 읽어 내는가"이므로 2026-08-27 이전 표의 AM 값과 나란히
+    놓으면 안 된다.** 표 전체를 `cli.rescore --write` 로 한꺼번에 다시 매겨 표 안에서는
+    비교가 되게 했지만, 문서에 박혀 있는 옛 숫자는 옛 파서의 값이다.
+
+    **`data_collect` 원본과 갈라졌다.** 이 모듈 머리말의 "한 글자도 바꾸지 않았다" 는
+    이 함수에 대해서는 더 이상 참이 아니다. `tests/test_scoring.py` 의 원본 대조는
+    이제 AM1 에서 어긋난다 -- 새 파서가 원본이 못 읽던 것을 읽기 때문이다.
+
+    **붕괴 판정도 같이 움직인다.** `collapsed()` 는 읽힌 판정만 보는데, 못 읽은 26건
+    안에 negative 24건이 들어 있던 줄이 있었다(`delora-sentence-s44-run2A`). 반대로
+    negative 134건에 positive 1건이 건져지면서 **진짜 붕괴인데 붕괴 표시가 꺼지는 줄이
+    넷** 생긴다. 그쪽은 `쏠림` 열이 99.3% 로 남으므로 그 열로 읽는다.
+    """
+    cleaned = _strip_fence(text)
+    start = cleaned.find("{")
+    if start < 0:
+        return None
+    # 1. 앞에서부터 객체 하나만 떼어 읽는다. 뒤에 무엇이 붙어 있어도 상관없다.
     try:
-        result = json.loads(cleaned[start:end + 1])
-    except json.JSONDecodeError:
-        return None
-    return result if isinstance(result, dict) else None
+        result, _ = _DECODER.raw_decode(cleaned[start:])
+        if isinstance(result, dict):
+            return result
+    except ValueError:
+        pass
+    # 2. 안 되면 괄호를 맞춰 고쳐 읽는다. 둥근 따옴표 치환은 맨 마지막이다.
+    for candidate in (cleaned, "".join(_SMART_QUOTES.get(c, c) for c in cleaned)):
+        patched = _balanced(candidate)
+        if patched is None:
+            continue
+        try:
+            result = json.loads(patched)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(result, dict):
+            return result
+    return None
 
 
 def label_pairs(labels) -> list[tuple[str, str]] | None:
@@ -267,12 +393,36 @@ def impact_subjects(impacts) -> list[str]:
     return [str(x.get("주체", "")) for x in impacts if isinstance(x, dict)]
 
 
-def score_blind(raw: str) -> dict:
+def score_blind(raw: str, label_free: bool = False) -> dict:
     """정답키 없이 되는 것만 매긴다. AM4·AM5·AM7은 사람 라벨이 있어야 하므로 없다.
 
     **파싱이 깨지면 다섯 개가 전부 0점이다.** 첫 관문에서 되돌아 나가기 때문이다.
     그래서 다섯 항목 평균은 사실상 파싱률을 따라가고, 실패 기준의 숫자가 작동하는
     이유도 이것이다.
+
+    **2026-08-27 -- `labels`가 비면 AM2·AM3에 만점을 주지 않는다.** 그전에는 AM2가
+    검사할 어휘가 없어 자동 1점, AM3은 0개라 중복이 없어 자동 1점이었다. 그래서
+    **"전부 negative에 빈 배열"이 다섯 항목 만점을 받았다** -- `collapsed()`의 설명이
+    2026-08-11부터 "제일 게으른 답이 만점 전략이다"라고 적어 둔 그 자리다.
+
+    **문턱을 새로 만든 것이 아니라 이미 있던 원리를 옮긴 것이다.** AM8s가 벌써
+    똑같이 한다 -- "positive인데 배열이 비면 검사할 것이 없어 공짜 점수가 되므로
+    0으로 막는다". 검사할 것이 없을 때 만점을 안 주는 것이 원래 규칙이었고, AM2·AM3
+    두 칸에만 안 걸려 있었다.
+
+    왜 이날 필요해졌나. `parse_output`을 갈아 끼우자 **135건 중 반대 판정 1건**이
+    건져지면서 `collapsed()`가 꺼졌고(판정이 두 종류가 됐다), 게으른 답을 걸러 주던
+    장치가 그것 하나뿐이라 `lora-lr1e-4`·`lora-lr5e-5`·`lora-r8`·`lora-full-bare-s44-r2`
+    넷이 **교사일치 17%로 `됨` 판정을 받게 됐다**(무조건 negative의 값이 16.3%다).
+    이 수정으로 그 넷의 AM 최저가 0.007로 내려가 `verdict()`가 스스로 거른다.
+
+    `label_free`는 **`labels`를 아예 안 내는 것이 정상인 조건**(`target: sentence`)이다.
+    그쪽은 빈 배열이 게으름이 아니라 설계이므로 이 규칙에서 뺀다.
+
+    ── 원본과 갈라진 자리 ──────────────────────────────────────────────
+    **AM2·AM3의 정의가 `data_collect`의 `rubric.md`와 달라졌다.** 파서가 갈라진 것과는
+    성격이 다르다 -- 파서는 같은 눈금으로 더 많이 읽는 것이었고, 이것은 **눈금 자체가
+    다른 것이다.** 두 벌의 AM2·AM3을 한 표에 놓으면 안 된다.
     """
     result = {"AM1": 0, "AM2": 0, "AM3": 0, "AM6s": 0, "AM8s": 0}
     parsed = parse_output(raw)
@@ -283,8 +433,12 @@ def score_blind(raw: str) -> dict:
     pairs = label_pairs(parsed.get("labels", []))
     if pairs is None:
         return {**result, "parsed": parsed}
-    result["AM2"] = int(all(t in TARGETS and d in DIRECTIONS for t, d in pairs))
-    result["AM3"] = int(len(pairs) == len(set(pairs)))
+    if not pairs and not label_free:
+        # 검사할 것이 없다. AM8s와 같은 이유로 공짜 점수를 안 준다.
+        result["AM2"] = result["AM3"] = 0
+    else:
+        result["AM2"] = int(all(t in TARGETS and d in DIRECTIONS for t, d in pairs))
+        result["AM3"] = int(len(pairs) == len(set(pairs)))
 
     judgement = str(parsed.get("judgement", "")).strip()
     subjects = impact_subjects(parsed.get("impacts"))
