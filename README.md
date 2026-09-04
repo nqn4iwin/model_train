@@ -25,6 +25,20 @@ cd /mnt/c/Users/DACON/workspace/model_train && SERVER=<서버주소> bash sync_r
 `sweep.md` · `sweep.json`만 당겨온다. `rsync`라 몇 번을 다시 돌려도 받은 것은 건너뛰므로
 학습이 도는 중에 돌려도 된다.
 
+**실습 서버 -- 올리기와 띄우기.** 두 기계에서 하나씩 돌린다.
+
+```bash
+bash deploy_page.sh    # 로컬(WSL): 페이지를 짓고 git pull 시키고 서버로 올린다
+bash serve.sh          # 서버: venv·GPU·바깥 개방을 묶어 띄운다
+```
+
+**페이지(HTML)만 바꿨으면 서버를 안 내려도 된다** -- `cli/serve.py`가 요청마다 파일을
+새로 읽으므로 올린 뒤 브라우저만 새로 고치면 된다. **`cli/*.py`를 바꿨으면** 서버를
+Ctrl+C로 내리고 `serve.sh`로 다시 올린다(모델을 다시 싣는다).
+
+페이지는 `.gitignore`의 `visualizations/`에 들어 있어 `git push`로는 안 따라간다.
+그래서 올리는 일이 따로 있다.
+
 ---
 
 공공문서 개정 해석 과제로 KORMo-10B를 학습시키고, **무엇이 학습되고 무엇이 안 되는지
@@ -46,6 +60,9 @@ cli/                 명령줄에서 부르는 것 (command-line interface)
   evaluate.py        학습 전/후 KORMo를 같은 잣대로 채점
   sweep.py           설정 여러 개를 GPU 6·7에 물려 돌리고 채점까지
   rescore.py         저장된 기록으로 판정만 다시 매긴다. GPU 안 씀
+  serve.py           실습 페이지가 물어보는 추론 서버. GPU를 쓰는 유일한 쪽
+  pages.py           실습 페이지(HTML)를 짓는다. GPU 안 씀
+  hwpx.py            HWPX를 문단으로 펼치고 개정 전후를 맞댄다. master 가지에서 옮겨 심음
 tests/
   test_scoring.py    옮겨 심은 채점기가 원본과 같은 답을 내는지 대조
 configs/             _base.json 을 물려받고 바뀌는 칸만 적는다
