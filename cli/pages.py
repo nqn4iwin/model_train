@@ -23,7 +23,7 @@ import argparse
 import json
 from pathlib import Path
 
-from cli.serve import CATALOG, DEFAULT_PORT, PAIR_THRESHOLD
+from cli.serve import CATALOG, DEFAULT_PORT, MIN_INPUT_CHARS, PAIR_THRESHOLD
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,8 +38,12 @@ DEFAULT_ON = ["kormo-good", "gpt-nolearn"]
 def load_items() -> list[dict]:
     """홀드아웃에서 **positive만** 골라 온다.
 
-    「홀드아웃 불러쓰기」는 모델이 무엇을 하는지 보여 주는 단추다. 안 바뀐 조문
-    (negative)을 물으면 「바뀐 것 없음」이 나와 볼 것이 없으므로 뺀다.
+    「테스트 데이터에서 가져오기」는 모델이 무엇을 하는지 보여 주는 단추다. 안 바뀐
+    조문(negative)을 물으면 「바뀐 것 없음」이 나와 볼 것이 없으므로 뺀다.
+
+    **`MIN_INPUT_CHARS`보다 짧은 것도 뺀다.** 안 빼면 불러온 것을 서버가 「너무
+    짧습니다」로 되돌려주는 꼴이 된다 -- 자기 단추가 준 것을 자기가 막는 셈이다.
+    113건 중 8건이 여기서 빠져 105건이 남는다.
     """
     items = []
     for line in HOLDOUT.read_text(encoding="utf-8").splitlines():
@@ -47,6 +51,8 @@ def load_items() -> list[dict]:
             continue
         row = json.loads(line)
         if row.get("judgement") != "positive":
+            continue
+        if min(len(row["before"]), len(row["after"])) < MIN_INPUT_CHARS:
             continue
         items.append({"id": row["id"], "before": row["before"],
                       "after": row["after"]})

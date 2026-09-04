@@ -1,17 +1,18 @@
 """정리 페이지의 「실습」 칸이 물어보는 추론 서버. **GPU를 쓰는 유일한 쪽이다.**
 
-여섯 칸을 띄우지만 **GPU에 올라가는 것은 세 벌**이다. 어댑터(원본 가중치를 얼려두고
+일곱 칸을 띄우지만 **GPU에 올라가는 것은 세 벌**이다. 어댑터(원본 가중치를 얼려두고
 작은 층만 학습한 것)는 원본에 얹는 것이라, 같은 원본을 쓰는 어댑터끼리는 **한 벌에
 여러 개를 붙여 두고 갈아 끼울 수 있다.**
 
-    GPU-A  KORMo-10B + DeLoRA 어댑터 1개    ~21GB   학습 안 됨 · 잘된 KORMo
-    GPU-A  KORMo-10B + LoRA   어댑터 3개    ~21GB   이상함 셋
-    GPU-B  Qwen3.8-27B + DeLoRA 어댑터 1개  ~56GB   잘된 Qwen
+    GPU-A  KORMo-10B + DeLoRA 어댑터 1개    ~21GB   A 잘된 KORMo · C 학습 안 된 KORMo
+    GPU-A  KORMo-10B + LoRA   어댑터 2개    ~21GB   F 무조건 negative · G 무조건 positive
+    GPU-B  Qwen3.8-27B + DeLoRA 어댑터 1개  ~56GB   B 잘된 Qwen · D 학습 안 된 Qwen
+    (없음) OpenAI                                   E 학습 안 된 GPT -- 남의 서버로 간다
 
 **KORMo를 두 벌 올리는 이유는 peft가 한 모델에 DELORA와 LORA를 섞어 못 붙이기
-때문이다.** 같은 종류끼리는 한 벌로 되므로 LoRA 셋은 묶었다. 「학습 안 됨」은 원본을
-따로 싣지 않고 `disable_adapter()`로 어댑터를 잠깐 꺼서 만든다 -- 어댑터를 끄면 남는
-것이 정확히 학습 전 KORMo다.
+때문이다.** 같은 종류끼리는 한 벌로 된다. 「학습 안 됨」(C·D)은 원본을 따로 싣지 않고
+`disable_adapter()`로 어댑터를 잠깐 꺼서 만든다 -- 어댑터를 끄면 남는 것이 정확히
+학습 전 모델이라 **한 칸을 공짜로 얻는다.**
 
 **답을 만드는 길은 `cli/evaluate.py`와 한 글자도 다르지 않다.** 같은 `build_prompt`,
 같은 프리필, 같은 greedy, 같은 `parse_output`이다. 다르면 실습에서 나온 답이 페이지에
@@ -84,6 +85,14 @@ DEFAULT_PORT = 8137
 # 0.551이라 여유가 0.001밖에 없다.** 크게 손본 조문이 걸리기 시작하면 내린다.
 PAIR_THRESHOLD = 0.55
 
+# 손으로 넣은 글의 최소 길이. `master` 가지 `classify_diff.py`가 블록을 짝지을 때 쓰는
+# `min_length=30`과 같은 값이다. 이유도 저쪽에 적혀 있다 -- **짧은 글은 우연히 닮는다.**
+# 「수소차」와 「수동소자」가 유사도 0.571로 문턱을 넘어 버린다.
+#
+# **파일에서 뽑은 구간에는 안 건다.** 그쪽은 문서 안에서 이미 짝이 정해진 것이라
+# 짧아도 진짜 조문이다. 여기서 막는 것은 사람이 손으로 넣은 토막글뿐이다.
+MIN_INPUT_CHARS = 30
+
 # G칸(학습 없는 GPT)이 쓰는 것. **열쇠는 코드에도 저장소에도 안 적는다** -- 환경변수
 # `OPENAI_API_KEY`로만 받고, 없으면 그 칸이 잠긴 채로 뜬다.
 #
@@ -106,20 +115,21 @@ PREFILL = '{\n  "judgement": "'
 # 한 벌에 여러 어댑터를 붙여 두는 묶음. `engine`이 같으면 같은 원본 위에서 이름만
 # 갈아 끼운다. `adapter`가 None이면 어댑터를 꺼서 학습 전 모델이 된다.
 #
-# **여기 적힌 순서가 화면에 서는 순서고, `letter`가 화면에 붙는 이름이다.** 제일 잘된
-# 것(A)을 맨 앞에 두고 학습 안 한 것(F)을 맨 뒤에 둔다 -- 고르는 사람이 위에서부터
-# 읽으므로 기본으로 고를 것이 맨 위에 있어야 한다.
+# **여기 적힌 순서가 화면에 서는 순서고, `letter`가 화면에 붙는 이름이다.** 세 덩어리로
+# 묶여 있다 -- 학습한 둘(A·B) · 학습 안 한 셋(C·D·E) · 일부러 망가뜨린 둘(F·G).
 CATALOG = [
-{
-        "key": "kormo-good", "letter": "A", "engine": "kormo-delora", "adapter": "delora-run2A",
+    {
+        "key": "kormo-good", "letter": "A", "engine": "kormo-delora",
+        "adapter": "delora-run2A",
         "label": "제일 점수가 높았던 KORMo",
         "run": "delora-run2A",
         "note": "DeLoRA · 학습 3,178건 · 3에폭",
         "detail": "교사일치 94.1% · 라벨일치 37.2%. 두 라운드 다 seed 폭이 가장 "
                   "안 흔들린 계열이라 A/B를 가르는 자로 쓰던 조합이다",
     },
-{
-        "key": "qwen-good", "letter": "B", "engine": "qwen", "adapter": "qwen-delora-run2A",
+    {
+        "key": "qwen-good", "letter": "B", "engine": "qwen",
+        "adapter": "qwen-delora-run2A",
         "label": "A와 같은 방법으로 학습한 Qwen",
         "run": "qwen-delora-run2A",
         "note": "DeLoRA · 같은 데이터 · 같은 seed · Qwen3.8-27B",
@@ -127,8 +137,9 @@ CATALOG = [
                   "같아 **모델 크기만 다르다**가 성립하는 짝이다. 학습에 18시간 38분이 "
                   "걸렸다 -- 같은 스텝에서 KORMo(1시간 46분)의 10.5배다",
     },
-{
-        "key": "kormo-base", "letter": "C", "engine": "kormo-delora", "adapter": None,
+    {
+        "key": "kormo-base", "letter": "C", "engine": "kormo-delora",
+        "adapter": None,
         "label": "학습 없이 프롬프트만 넣은 KORMo",
         "run": None,
         "note": "KORMo-10B 원본. 어댑터를 안 붙였다",
@@ -136,42 +147,42 @@ CATALOG = [
                   "되풀이하거나 조문을 이어 쓴다. 홀드아웃 135건에서 판정이 읽힌 것이 "
                   "81건뿐이고 그중 negative는 0건이다",
     },
-{
-        "key": "kormo-bad-negative", "letter": "D", "engine": "kormo-lora",
-        "adapter": "lora-sentence-bare-r2",
-        "label": "이상함 ① 겉만 멀쩡한 붕괴",
-        "run": "lora-sentence-bare-r2",
-        "note": "LoRA · 규칙서 없이 최종 문장만 학습",
-        "detail": "형식 점수(AM) 평균이 99.9%로 표에서 제일 높은데 135건 전부 "
-                  "negative다. **점수가 높다고 배운 것이 아니다**를 한 화면에서 "
-                  "보여주는 자리다",
-    },
-{
-        "key": "kormo-bad-positive", "letter": "E", "engine": "kormo-lora",
-        "adapter": "lora-full-nonegative-r2",
-        "label": "이상함 ② 아니라고 못 한다",
-        "run": "lora-full-nonegative-r2",
-        "note": "LoRA · 학습에서 negative를 통째로 뺐다",
-        "detail": "135건 전부 positive다. 안 바뀐 조문을 줘도 바뀌었다고 답한다. "
-                  "학습 데이터에 없던 답은 낼 줄 모른다",
-    },
-{
-        "key": "kormo-bad-broken", "letter": "F", "engine": "kormo-lora",
-        "adapter": "lora-full-down120-s43",
-        "label": "이상함 ③ 말이 깨진다",
-        "run": "lora-full-down120-s43",
-        "note": "LoRA · 학습 562건 · 계열당 120건으로 깎음 · seed 43",
-        "detail": "135건 중 70건은 판정조차 안 읽힌다. 형식이 무너진 실패라 "
-                  "앞의 둘과 고장 난 자리가 다르다",
+    {
+        "key": "qwen-base", "letter": "D", "engine": "qwen", "adapter": None,
+        "label": "학습 없이 프롬프트만 넣은 Qwen",
+        "run": None,
+        "note": "Qwen3.8-27B 원본. 어댑터를 안 붙였다",
+        "detail": "**이 저장소에서 말이 실제로 무너지는 유일한 칸이다.** 한국어 JSON으로 "
+                  "시작했다가 영어 독백(`<think>`)으로 새고 프롬프트를 되풀이한다. "
+                  "135건 중 93건은 판정조차 안 읽히고 108건이 768토큰 상한까지 갔다",
     },
     {
-        "key": "gpt-nolearn", "letter": "G", "engine": "openai", "adapter": None,
+        "key": "gpt-nolearn", "letter": "E", "engine": "openai", "adapter": None,
         "label": "학습 없이 프롬프트만 넣은 GPT",
         "run": None,
         "note": "OpenAI · 학습 안 함 · 규칙서만 준다",
         "detail": "우리가 학습시킨 것들과 같은 규칙서·같은 조문을 받는다. **학습 대신 "
                   "큰 모델로 풀면 어디까지 되는가**를 재는 자리다. GPU를 안 쓰고 "
                   "OPENAI_API_KEY가 있어야 살아난다",
+    },
+    {
+        "key": "kormo-bad-negative", "letter": "F", "engine": "kormo-lora",
+        "adapter": "lora-sentence-bare-r2",
+        "label": "무조건 negative",
+        "run": "lora-sentence-bare-r2",
+        "note": "LoRA · 규칙서 없이 최종 문장만 학습",
+        "detail": "형식 점수(AM) 평균이 99.9%로 표에서 제일 높은데 135건 전부 "
+                  "negative다. **점수가 높다고 배운 것이 아니다**를 한 화면에서 "
+                  "보여주는 자리다",
+    },
+    {
+        "key": "kormo-bad-positive", "letter": "G", "engine": "kormo-lora",
+        "adapter": "lora-full-nonegative-r2",
+        "label": "무조건 positive",
+        "run": "lora-full-nonegative-r2",
+        "note": "LoRA · 학습에서 negative를 통째로 뺐다",
+        "detail": "135건 전부 positive다. 안 바뀐 조문을 줘도 바뀌었다고 답한다. "
+                  "학습 데이터에 없던 답은 낼 줄 모른다",
     },
 ]
 
@@ -482,6 +493,11 @@ def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int,
                     self._send(400, {"ok": False,
                                      "error": "개정 전과 개정 후를 둘 다 넣어 주세요"})
                     return
+                if min(len(before_text), len(after_text)) < MIN_INPUT_CHARS:
+                    self._send(400, {"ok": False, "error":
+                                     f"너무 짧습니다. 개정 전과 후 모두 "
+                                     f"{MIN_INPUT_CHARS}자 이상 넣어 주세요"})
+                    return
                 ratio = similarity(before_text, after_text)
                 counts = (1, 1)
                 regions = self._regions_html([{
@@ -517,7 +533,12 @@ def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int,
                     return
                 ratio = similarity(before, after)
                 counts = (len(before), len(after))
-                regions = self._regions_html(changed_regions(before, after))
+                # **한쪽만 있는 구간은 뺀다.** 넣기만 했거나 빼기만 한 자리는 맞댈
+                # 짝이 없어서, 골라 봐야 모델에 빈 쪽을 주게 된다. 실측한 문서
+                # 9쌍에서 구간 96개 중 22개가 이런 것이었다.
+                paired = [r for r in changed_regions(before, after)
+                          if r["before"].strip() and r["after"].strip()]
+                regions = self._regions_html(paired)
 
             too_different = ratio < PAIR_THRESHOLD
             print(f"  맞댐: {counts[0]} -> {counts[1]}칸 · 닮은 정도 {ratio:.3f}"
