@@ -16,6 +16,19 @@
 #     GPUS=2,3 bash serve.sh            # 우리 자리가 또 옮겨졌을 때
 #     PORT=9000 bash serve.sh           # 8137 도 이미 쓰이고 있을 때
 #     bash serve.sh --only kormo-good   # 남은 인자는 cli.serve 로 그대로 간다
+#
+# **G칸(학습 없는 GPT)은 열쇠가 있어야 살아난다.** 환경변수로만 받는다 -- 저장소에도
+# 페이지에도 안 적는다. 서버의 `~/.bashrc` 맨 아래에 한 줄 넣어 두면 매번 안 쳐도 된다:
+#
+#     export OPENAI_API_KEY=sk-...
+#
+# 그때그때 주려면 앞에 붙인다. 모델을 바꾸려면 `OPENAI_MODEL` 도 같은 방식이다:
+#
+#     OPENAI_API_KEY=sk-... bash serve.sh
+#
+# **열쇠만 시험할 때는 GPU가 필요 없다** -- 21GB 를 싣기 전에 확인할 수 있다:
+#
+#     OPENAI_API_KEY=sk-... bash serve.sh --only gpt-nolearn
 set -euo pipefail
 
 cd "$(dirname "$0")"

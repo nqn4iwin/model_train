@@ -30,12 +30,8 @@ ROOT = Path(__file__).resolve().parents[1]
 HOLDOUT = ROOT / "data/20260821__annotate__v2.2-run2A/holdout.jsonl"
 OUT = ROOT / "visualizations/정리_1_결과.html"
 
-# 서버에 없는 칸. 여기서만 더한다.
-GPT_CARD = {"letter": "G", "key": "gpt-nolearn",
-            "label": "학습 없이 프롬프트만 넣은 GPT"}
-
-# 처음부터 켜져 있는 칸. **A를 같이 켜 둔다** -- G는 아직 API가 없어 그것만 켜면
-# 「분석하기」가 빈 답만 낸다.
+# 처음부터 켜져 있는 칸. **학습한 것 하나와 안 한 것 하나**를 켜 두어, 누르자마자
+# 둘의 차이가 한 화면에 보이게 한다.
 DEFAULT_ON = ["kormo-good", "gpt-nolearn"]
 
 
@@ -102,6 +98,7 @@ button.load{font-size:1.05rem;font-weight:600;padding:.7rem 1.5rem;
   border-radius:10px;border:2px solid var(--line2);background:var(--card);
   color:var(--fg)}
 button.load:hover{border-color:var(--fg);background:var(--card2)}
+.hint{color:var(--mut);font-size:.85rem;margin-left:.8rem}
 
 .io{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin:.6rem 0}
 @media (max-width:900px){.io{grid-template-columns:1fr}}
@@ -209,9 +206,7 @@ async function probe() {
 
 function paintModels() {
   $('models').innerHTML = CARDS.map((m) => {
-    // G는 서버에 없는 칸이라 `ready` 검사를 건너뛴다. API가 붙기 전에도 고를 수
-    // 있어야 결과 칸에 「API 연결 안 됨」이 뜬다.
-    const dead = !m.stub && !ready.has(m.key);
+    const dead = !ready.has(m.key);
     const on = CONF.on.includes(m.key) && !dead;
     return "<label class='mo" + (on ? ' on' : '') + (dead ? ' dead' : '') + "'>" +
       "<input type=checkbox data-model='" + m.key + "'" + (on ? ' checked' : '') +
@@ -365,7 +360,7 @@ function resultCard(meta, state) {
   const cls = 'rc' + (state.pending ? ' wait' : '') + (state.error ? ' err' : '');
   return "<div class='" + cls + "'>" +
     '<div class=row><span class=k>선택모델</span><span class=v>' +
-      meta.letter + ' · ' + esc(meta.label) + '</span></div>' +
+      meta.letter + ' | ' + esc(meta.label) + '</span></div>' +
     '<div class=row><span class=k>문서 의미 차이</span><span class=v>' +
       (state.error ? '—' : badge) + '</span></div>' +
     '<div class=row><span class=k>최종 응답</span><span class=ans>' +
@@ -388,11 +383,6 @@ $('run').addEventListener('click', async () => {
   // 하나씩 보낸다. 서버가 GPU마다 자물쇠를 걸어 어차피 줄을 서므로, 한꺼번에 던지면
   // 먼저 온 것이 먼저 그려지는 것만 잃는다.
   for (let i = 0; i < targets.length; i += 1) {
-    if (targets[i].stub) {
-      states[i] = {error: 'API 연결 안 됨'};
-      paint();
-      continue;
-    }
     try {
       const res = await fetch(API + '/generate', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -422,21 +412,21 @@ def data_island(name: str, payload) -> str:
 
 
 def build_page(items: list[dict]) -> str:
-    cards = [{"key": e["key"], "letter": e["letter"], "label": e["label"],
-              "stub": False} for e in CATALOG]
-    cards.append({**GPT_CARD, "stub": True})
+    cards = [{"key": e["key"], "letter": e["letter"], "label": e["label"]}
+             for e in CATALOG]
     conf = {"on": DEFAULT_ON, "threshold": PAIR_THRESHOLD}
 
     return f"""<!doctype html>
 <html lang=ko><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>개정 조문 해석</title>
+<title>문서 차이 해석 SLM</title>
 <style>{CSS}</style>
 <main>
-<h1>개정 조문 해석</h1>
+<h1>문서 차이 해석 SLM</h1>
 <div class=status><span class=dot id=dot></span><span id=stat>서버 확인 중</span></div>
 
-<p><button class=load id=load>홀드아웃 불러쓰기</button></p>
+<p><button class=load id=load>테스트 데이터에서 가져오기</button>
+<span class=hint>다른 데이터를 보고 싶으면 버튼을 여러 번 클릭하세요.</span></p>
 
 <div class=io>
 <div><h2>개정 전</h2>
@@ -475,7 +465,7 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(build_page(items), encoding="utf-8")
 
-    print(f"홀드아웃 positive {len(items)}건 · 모델 {len(CATALOG) + 1}칸")
+    print(f"홀드아웃 positive {len(items)}건 · 모델 {len(CATALOG)}칸")
     print(f"저장: {out}  ({out.stat().st_size / 1024:.0f}KB)")
 
 

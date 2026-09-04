@@ -50,6 +50,7 @@ import os
 import threading
 import time
 import traceback
+import urllib.request
 import zipfile
 from contextlib import nullcontext
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -83,6 +84,18 @@ DEFAULT_PORT = 8137
 # 0.551이라 여유가 0.001밖에 없다.** 크게 손본 조문이 걸리기 시작하면 내린다.
 PAIR_THRESHOLD = 0.55
 
+# G칸(학습 없는 GPT)이 쓰는 것. **열쇠는 코드에도 저장소에도 안 적는다** -- 환경변수
+# `OPENAI_API_KEY`로만 받고, 없으면 그 칸이 잠긴 채로 뜬다.
+#
+# **브라우저가 아니라 서버가 부른다.** 페이지에 열쇠를 두면 그 주소에 닿는 사람
+# 누구나 소스 보기로 가져간다 -- 이 서버에는 로그인 장치가 없다.
+#
+# **새 패키지를 안 쓴다.** `openai` 꾸러미를 깔면 판본 고정이 깨지므로
+# (`docs/서버환경.md`) 파이썬에 딸려 오는 `urllib`로 HTTP를 직접 친다.
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_TIMEOUT = 90
+
 KORMO = "KORMo-Team/KORMo-10B-base"
 QWEN = "Qwen/Qwen3.8-27B"
 
@@ -115,7 +128,16 @@ CATALOG = [
                   "걸렸다 -- 같은 스텝에서 KORMo(1시간 46분)의 10.5배다",
     },
 {
-        "key": "kormo-bad-negative", "letter": "C", "engine": "kormo-lora",
+        "key": "kormo-base", "letter": "C", "engine": "kormo-delora", "adapter": None,
+        "label": "학습 없이 프롬프트만 넣은 KORMo",
+        "run": None,
+        "note": "KORMo-10B 원본. 어댑터를 안 붙였다",
+        "detail": "규칙서를 지시가 아니라 읽을거리로 받아, 프롬프트 안의 예시를 "
+                  "되풀이하거나 조문을 이어 쓴다. 홀드아웃 135건에서 판정이 읽힌 것이 "
+                  "81건뿐이고 그중 negative는 0건이다",
+    },
+{
+        "key": "kormo-bad-negative", "letter": "D", "engine": "kormo-lora",
         "adapter": "lora-sentence-bare-r2",
         "label": "이상함 ① 겉만 멀쩡한 붕괴",
         "run": "lora-sentence-bare-r2",
@@ -125,7 +147,7 @@ CATALOG = [
                   "보여주는 자리다",
     },
 {
-        "key": "kormo-bad-positive", "letter": "D", "engine": "kormo-lora",
+        "key": "kormo-bad-positive", "letter": "E", "engine": "kormo-lora",
         "adapter": "lora-full-nonegative-r2",
         "label": "이상함 ② 아니라고 못 한다",
         "run": "lora-full-nonegative-r2",
@@ -134,7 +156,7 @@ CATALOG = [
                   "학습 데이터에 없던 답은 낼 줄 모른다",
     },
 {
-        "key": "kormo-bad-broken", "letter": "E", "engine": "kormo-lora",
+        "key": "kormo-bad-broken", "letter": "F", "engine": "kormo-lora",
         "adapter": "lora-full-down120-s43",
         "label": "이상함 ③ 말이 깨진다",
         "run": "lora-full-down120-s43",
@@ -142,14 +164,14 @@ CATALOG = [
         "detail": "135건 중 70건은 판정조차 안 읽힌다. 형식이 무너진 실패라 "
                   "앞의 둘과 고장 난 자리가 다르다",
     },
-{
-        "key": "kormo-base", "letter": "F", "engine": "kormo-delora", "adapter": None,
-        "label": "학습 없이 프롬프트만 넣은 KORMo",
+    {
+        "key": "gpt-nolearn", "letter": "G", "engine": "openai", "adapter": None,
+        "label": "학습 없이 프롬프트만 넣은 GPT",
         "run": None,
-        "note": "KORMo-10B 원본. 어댑터를 안 붙였다",
-        "detail": "규칙서를 지시가 아니라 읽을거리로 받아, 프롬프트 안의 예시를 "
-                  "되풀이하거나 조문을 이어 쓴다. 홀드아웃 135건에서 판정이 읽힌 것이 "
-                  "81건뿐이고 그중 negative는 0건이다",
+        "note": "OpenAI · 학습 안 함 · 규칙서만 준다",
+        "detail": "우리가 학습시킨 것들과 같은 규칙서·같은 조문을 받는다. **학습 대신 "
+                  "큰 모델로 풀면 어디까지 되는가**를 재는 자리다. GPU를 안 쓰고 "
+                  "OPENAI_API_KEY가 있어야 살아난다",
     },
 ]
 
@@ -159,7 +181,42 @@ ENGINES = {
     "kormo-delora": {"model": KORMO, "label": "KORMo + DeLoRA"},
     "kormo-lora": {"model": KORMO, "label": "KORMo + LoRA 3개"},
     "qwen": {"model": QWEN, "label": "Qwen + DeLoRA"},
+    # GPU를 안 쓴다. 원본을 안 싣고 남의 서버에 물어본다.
+    "openai": {"model": OPENAI_MODEL, "label": "OpenAI (원격)"},
 }
+
+
+def openai_key() -> str:
+    return os.environ.get("OPENAI_API_KEY", "").strip()
+
+
+def openai_answer(prompt: str, max_tokens: int) -> dict:
+    """OpenAI에 같은 프롬프트를 던지고 답을 받는다.
+
+    **프리필을 안 쓴다.** 프리필은 base 모델이 지시를 안 따라 답의 첫 글자를 넣어
+    주던 장치인데, 지시를 따르는 모델에는 필요가 없고 오히려 말을 끊는다.
+    나머지(같은 규칙서·같은 조문·temperature 0)는 학습한 것들과 같게 둔다.
+    """
+    payload = json.dumps({
+        "model": OPENAI_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+        "max_completion_tokens": max_tokens,
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        OPENAI_URL, data=payload,
+        headers={"Content-Type": "application/json",
+                 "Authorization": f"Bearer {openai_key()}"})
+    started = time.time()
+    with urllib.request.urlopen(request, timeout=OPENAI_TIMEOUT) as response:
+        answer = json.loads(response.read().decode("utf-8"))
+    usage = answer.get("usage", {})
+    return {
+        "text": answer["choices"][0]["message"]["content"],
+        "new_tokens": int(usage.get("completion_tokens", 0)),
+        "prompt_tokens": int(usage.get("prompt_tokens", 0)),
+        "seconds": round(time.time() - started, 2),
+    }
 
 
 class Engine:
@@ -260,6 +317,8 @@ def build_engines(keys: list[str], kormo_device: str, qwen_device: str) -> dict:
         if entry["adapter"] and entry["adapter"] not in [n for n, _ in pairs]:
             pairs.append((entry["adapter"], adapter_path(entry["adapter"])))
 
+    wanted.pop("openai", None)   # 남의 서버에 물어보는 칸이라 GPU에 실을 것이 없다
+
     engines: dict[str, Engine] = {}
     for name, adapters in wanted.items():
         device = qwen_device if name == "qwen" else kormo_device
@@ -284,14 +343,19 @@ def catalog_status(engines: dict, keys: list[str]) -> list[dict]:
     for entry in CATALOG:
         if entry["key"] not in keys:
             continue
-        engine = engines.get(entry["engine"])
-        ready = bool(engine and engine.model is not None)
+        if entry["engine"] == "openai":
+            ready = bool(openai_key())
+            error = None if ready else "OPENAI_API_KEY가 없습니다"
+        else:
+            engine = engines.get(entry["engine"])
+            ready = bool(engine and engine.model is not None)
+            error = None if ready else (engine.error if engine else "안 실었습니다")
         rows.append({
             **{k: entry[k] for k in ("key", "label", "run", "note", "detail")},
             "model": ENGINES[entry["engine"]]["model"],
             "engine": entry["engine"],
             "ready": ready,
-            "error": None if ready else (engine.error if engine else "안 실었습니다"),
+            "error": error,
         })
     return rows
 
@@ -472,11 +536,20 @@ def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int,
             if entry is None or key not in keys:
                 self._send(400, {"ok": False, "error": f"없는 모델입니다: {key}"})
                 return
-            engine = engines.get(entry["engine"])
-            if engine is None or engine.model is None:
-                self._send(503, {"ok": False,
-                                 "error": engine.error if engine else "안 실었습니다"})
-                return
+            # G칸은 GPU가 아니라 남의 서버로 간다. 막히는 이유가 다르므로 갈라 본다.
+            remote = entry["engine"] == "openai"
+            engine = None
+            if remote:
+                if not openai_key():
+                    self._send(503, {"ok": False,
+                                     "error": "OPENAI_API_KEY가 없습니다"})
+                    return
+            else:
+                engine = engines.get(entry["engine"])
+                if engine is None or engine.model is None:
+                    self._send(503, {"ok": False,
+                                     "error": engine.error if engine else "안 실었습니다"})
+                    return
 
             before, after = body.get("before") or "", body.get("after") or ""
             if not before.strip() or not after.strip():
@@ -492,8 +565,12 @@ def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int,
             max_new_tokens = int(body.get("max_new_tokens") or default_max_new_tokens)
             try:
                 prompt = build_prompt(record, rules=body.get("rules", True))
-                result = engine.generate(prompt + prefill, entry["adapter"],
-                                         max_new_tokens)
+                if remote:
+                    prefill = ""      # 지시를 따르는 모델이라 붙일 이유가 없다
+                    result = openai_answer(prompt, max_new_tokens)
+                else:
+                    result = engine.generate(prompt + prefill, entry["adapter"],
+                                             max_new_tokens)
             except Exception as error:  # noqa: BLE001 -- 한 건이 죽어도 서버는 산다
                 traceback.print_exc()
                 self._send(500, {"ok": False,
@@ -547,14 +624,20 @@ def main() -> None:
         for entry in CATALOG:
             mark = "o" if entry["key"] in keys else "-"
             path = adapter_path(entry["adapter"]) if entry["adapter"] else None
-            state = "원본" if path is None else ("있음" if path.exists() else "없음")
+            if entry["engine"] == "openai":
+                state = "원격"
+            else:
+                state = "원본" if path is None else ("있음" if path.exists() else "없음")
             print(f" {mark} {entry['key']:<20} {entry['label']:<22} "
                   f"어댑터 {state:<4} {entry['adapter'] or ''}")
         return
 
     # 이 서버는 8장을 여럿이 나눠 쓴다. 안 주면 0번을 잡는데 0번은 우리 몫이 아니다.
     # `cli/train.py`·`cli/evaluate.py`와 같은 자리에서 같은 이유로 막는다.
-    if not os.environ.get("CUDA_VISIBLE_DEVICES"):
+    # **GPU 칸을 하나도 안 고르면 안 물어본다.** `--only gpt-nolearn` 으로 열쇠만
+    # 시험할 때 GPU를 요구하면 21GB를 싣고서야 확인하게 된다.
+    needs_gpu = any(e["engine"] != "openai" for e in CATALOG if e["key"] in keys)
+    if needs_gpu and not os.environ.get("CUDA_VISIBLE_DEVICES"):
         raise SystemExit(
             "CUDA_VISIBLE_DEVICES를 지정하세요. 이 프로젝트 몫은 6·7번입니다.\n"
             "  CUDA_VISIBLE_DEVICES=6,7 python -m cli.serve --port 8137")
