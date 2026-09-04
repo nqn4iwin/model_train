@@ -386,13 +386,22 @@ $('run').addEventListener('click', async () => {
   };
   paint();
 
-  // 하나씩 보낸다. 서버가 GPU마다 자물쇠를 걸어 어차피 줄을 서므로, 한꺼번에 던지면
-  // 먼저 온 것이 먼저 그려지는 것만 잃는다.
-  for (let i = 0; i < targets.length; i += 1) {
+  // **한꺼번에 던진다.** 자물쇠는 GPU 벌마다 따로 걸리므로, 서로 다른 벌에 가는
+  // 것들은 동시에 돈다. 하나씩 보내면 일곱 칸 시간이 그대로 더해지는데(실측 약
+  // 2분 40초), 벌 단위로 나뉘면 제일 느린 줄만 기다리면 된다(약 1분 30초):
+  //
+  //     KORMo-DeLoRA 벌   A 18초 + C 21초 = 39초
+  //     KORMo-LoRA 벌     F  6초 + G 18초 = 24초
+  //     Qwen 벌           B 37초 + D 54초 = 91초   <- 여기가 천장
+  //     OpenAI            E 몇 초
+  //
+  // **같은 벌에 가는 둘은 서버가 알아서 줄을 세운다.** 어댑터 이름을 갈아 끼우는
+  // 구조라 겹치면 서로의 어댑터로 답하는데, `Engine`의 자물쇠가 그것을 막는다.
+  await Promise.all(targets.map(async (meta, i) => {
     try {
       const res = await fetch(API + '/generate', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({model: targets[i].key,
+        body: JSON.stringify({model: meta.key,
                               before: region.before, after: region.after}),
       });
       const data = await res.json();
@@ -401,7 +410,7 @@ $('run').addEventListener('click', async () => {
       states[i] = {error: String(err)};
     }
     paint();
-  }
+  }));
   $('spin').className = 'spin';
   $('run').disabled = false;
 });
