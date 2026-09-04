@@ -16,7 +16,7 @@
 
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
     python -m cli.train --config configs/delora.json --inspect   # 안 돌리고 확인만
-    CUDA_VISIBLE_DEVICES=4 python -m cli.train --config configs/delora.json
+    CUDA_VISIBLE_DEVICES=6 python -m cli.train --config configs/delora.json
 """
 from __future__ import annotations
 
@@ -164,11 +164,11 @@ def main() -> None:
         inspect(config, rows)
         return
 
-    # 이 서버는 8장을 여럿이 나눠 쓴다. 안 지정하면 0번을 잡는데 우리 몫은 4·5번이다.
+    # 이 서버는 8장을 여럿이 나눠 쓴다. 안 지정하면 0번을 잡는데 우리 몫은 6·7번이다.
     if not os.environ.get("CUDA_VISIBLE_DEVICES"):
         raise SystemExit(
-            "CUDA_VISIBLE_DEVICES를 지정하세요. 이 프로젝트 몫은 4·5번입니다.\n"
-            "  CUDA_VISIBLE_DEVICES=4 python train.py --config ...")
+            "CUDA_VISIBLE_DEVICES를 지정하세요. 이 프로젝트 몫은 6·7번입니다.\n"
+            "  CUDA_VISIBLE_DEVICES=6 python train.py --config ...")
 
     import torch
     from peft import get_peft_config

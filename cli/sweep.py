@@ -1,4 +1,4 @@
-"""설정 여러 개를 GPU 4·5에 두 개씩 물려 돌리고, 끝나는 대로 채점한다.
+"""설정 여러 개를 GPU 6·7에 두 개씩 물려 돌리고, 끝나는 대로 채점한다.
 
 한 실험은 **학습 -> 채점** 두 걸음이고, 이 둘은 같은 GPU에서 이어서 한다. 어댑터를
 디스크에 쓴 뒤 다시 읽는 것보다 자리를 잡고 있는 편이 단순하다.
@@ -36,7 +36,7 @@ from sft.training import read_config
 # cli/ 안에 있으므로 저장소 뿌리는 한 단계 위다.
 ROOT = Path(__file__).resolve().parents[1]
 HOLDOUT = "data/20260811__annotate__v2.2/holdout.jsonl"
-GPUS = ["4", "5"]
+GPUS = ["6", "7"]
 
 
 def eval_dir() -> str:

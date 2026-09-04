@@ -44,7 +44,7 @@ cli/                 명령줄에서 부르는 것 (command-line interface)
   build_records.py   위 규칙으로 데이터 파일을 만든다
   train.py           설정 JSON 하나로 PEFT 학습 한 번
   evaluate.py        학습 전/후 KORMo를 같은 잣대로 채점
-  sweep.py           설정 여러 개를 GPU 4·5에 물려 돌리고 채점까지
+  sweep.py           설정 여러 개를 GPU 6·7에 물려 돌리고 채점까지
   rescore.py         저장된 기록으로 판정만 다시 매긴다. GPU 안 씀
 tests/
   test_scoring.py    옮겨 심은 채점기가 원본과 같은 답을 내는지 대조
@@ -76,9 +76,9 @@ python -m cli.train --config configs/delora.json
 | --- | --- |
 | 데이터 만들기 | `python -m cli.build_records <records.jsonl> --out data/<날짜>__<판본>` |
 | 설정만 검사 | `python -m cli.sweep --check` |
-| 한 건 학습 | `CUDA_VISIBLE_DEVICES=4 python -m cli.train --config configs/delora.json` |
+| 한 건 학습 | `CUDA_VISIBLE_DEVICES=6 python -m cli.train --config configs/delora.json` |
 | 토큰 길이만 확인 | `python -m cli.train --config configs/delora.json --inspect` |
-| 채점 | `CUDA_VISIBLE_DEVICES=4 python -m cli.evaluate --data <holdout> --adapter <경로> --out <경로>` |
+| 채점 | `CUDA_VISIBLE_DEVICES=6 python -m cli.evaluate --data <holdout> --adapter <경로> --out <경로>` |
 | 여러 건 한꺼번에 | `python -m cli.sweep --all` |
 | 판정만 다시 매기기 | `python -m cli.rescore --write` |
 | 채점기 대조 | `python -m tests.test_scoring <records.jsonl>` |
@@ -166,13 +166,13 @@ AM 점수와 무관하게 실패다. 게으른 답 하나가 다섯 항목을 �
 
 ## 서버
 
-`ad-068`, H100 80GB x8 중 **4·5번**이 이 프로젝트 몫이다. 10B를 bf16으로 올리면 20GB
+`ad-068`, H100 80GB x8 중 **6·7번**이 이 프로젝트 몫이다. 10B를 bf16으로 올리면 20GB
 정도고 LoRA는 원본을 얼려두므로 한 장에 넉넉하다. **짧은 실험 스무 개에 DDP는 통신
 비용만 붙으므로, 2장이면 실험 두 개를 병렬로 돌린다.**
 
 ```bash
-CUDA_VISIBLE_DEVICES=4 python -m cli.train --config configs/a.json &
-CUDA_VISIBLE_DEVICES=5 python -m cli.train --config configs/b.json &
+CUDA_VISIBLE_DEVICES=6 python -m cli.train --config configs/a.json &
+CUDA_VISIBLE_DEVICES=7 python -m cli.train --config configs/b.json &
 ```
 
 캐시는 저장소 밖에 둔다.

@@ -29,17 +29,17 @@
 GPU를 안 쓰므로** 모델이 한 칸도 안 실렸어도 답한다.
 
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
-    CUDA_VISIBLE_DEVICES=4,5 python -m cli.serve --port 8000
+    CUDA_VISIBLE_DEVICES=6,7 python -m cli.serve --port 8137
     python -m cli.serve --list                     # 안 싣고 목록만 본다
-    CUDA_VISIBLE_DEVICES=4 python -m cli.serve --only kormo-base kormo-good
+    CUDA_VISIBLE_DEVICES=6 python -m cli.serve --only kormo-base kormo-good
 
-혼자 볼 때는 로컬에서 굴을 판다. 켜 둔 채로 `http://localhost:8000/` 을 연다.
-    ssh -L 8000:localhost:8000 <서버주소>
+혼자 볼 때는 로컬에서 굴을 판다. 켜 둔 채로 `http://localhost:8137/` 을 연다.
+    ssh -L 8137:localhost:8137 <서버주소>
 
-여럿이 볼 때는 `--host 0.0.0.0` 으로 띄우고 `http://<서버주소>:8000/` 을 알려 준다.
+여럿이 볼 때는 `--host 0.0.0.0` 으로 띄우고 `http://<서버주소>:8137/` 을 알려 준다.
 **로그인 장치가 없다 -- 그 포트에 닿는 사람은 누구나 이 GPU를 쓴다.** 사내망처럼
 닿을 사람이 정해진 곳에서만 쓴다.
-    CUDA_VISIBLE_DEVICES=4,5 python -m cli.serve --host 0.0.0.0 --port 8000
+    CUDA_VISIBLE_DEVICES=6,7 python -m cli.serve --host 0.0.0.0 --port 8137
 """
 from __future__ import annotations
 
@@ -69,6 +69,10 @@ PAGE = ROOT / "visualizations/정리_1_결과.html"
 # POST 본문 상한. 파일은 base64로 실려 와 **원본의 1.33배**가 되므로 15MB짜리 hwpx까지
 # 들어온다. 실측한 문서가 208KB였으니 한참 넉넉하다.
 MAX_BODY = 20 * 1024 * 1024
+
+# 기본 포트. **8000은 이 서버에서 남이 쓰고 있다.** `cli/pages.py`가 이 값을 가져다
+# 페이지의 안내 문구와 file:// 로 열었을 때의 기본 주소에 쓰므로, 옮기려면 여기만 고친다.
+DEFAULT_PORT = 8137
 
 KORMO = "KORMo-Team/KORMo-10B-base"
 QWEN = "Qwen/Qwen3.8-27B"
@@ -294,7 +298,7 @@ def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int,
             print(f"  {self.address_string()} {fmt % args}")
 
         def _cors(self) -> None:
-            # 페이지는 file:// 이고 서버는 localhost:8000 이라 **교차 출처**다.
+            # 페이지는 file:// 이고 서버는 localhost:8137 이라 **교차 출처**다.
             # 이 머리글이 없으면 브라우저가 답을 받아 놓고 스크립트에 안 넘긴다.
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -475,7 +479,7 @@ def main() -> None:
                     help="기본은 이 기계 안에서만 열린다(혼자 볼 때는 ssh -L). "
                          "여럿이 쓰게 하려면 0.0.0.0 -- 단 로그인 장치가 없어 "
                          "포트에 닿는 사람은 누구나 GPU를 쓴다")
-    ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--page", default=str(PAGE),
                     help="GET / 로 내줄 정리 페이지. cli/pages.py가 만든다")
     ap.add_argument("--only", nargs="*", default=None,
@@ -510,8 +514,8 @@ def main() -> None:
     # `cli/train.py`·`cli/evaluate.py`와 같은 자리에서 같은 이유로 막는다.
     if not os.environ.get("CUDA_VISIBLE_DEVICES"):
         raise SystemExit(
-            "CUDA_VISIBLE_DEVICES를 지정하세요. 이 프로젝트 몫은 4·5번입니다.\n"
-            "  CUDA_VISIBLE_DEVICES=4,5 python -m cli.serve --port 8000")
+            "CUDA_VISIBLE_DEVICES를 지정하세요. 이 프로젝트 몫은 6·7번입니다.\n"
+            "  CUDA_VISIBLE_DEVICES=6,7 python -m cli.serve --port 8137")
 
     engines = build_engines(keys, args.kormo_device, args.qwen_device)
 

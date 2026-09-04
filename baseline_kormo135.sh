@@ -21,7 +21,7 @@
 #     cd /data1/yblee/repository/model_train && source .venv/bin/activate
 #     bash baseline_kormo135.sh
 #
-# 4·5번 GPU 에 하나씩 물려 나란히 돌린다. 한 건에 한 시간 안팎이다
+# 6·7번 GPU 에 하나씩 물려 나란히 돌린다. 한 건에 한 시간 안팎이다
 # (학습한 KORMo 가 41분이고, 기준선은 말을 안 멈춰 더 걸린다).
 set -euo pipefail
 
@@ -30,12 +30,12 @@ RUN="${RUN:-runs/baseline-kormo-rules}"
 
 # `python -u` 로 띄운다. 안 붙이면 출력이 버퍼에 갇혀 **로그가 한참 안 쌓이고**,
 # 2026-08-18 에 그것을 보고 죽은 줄 알았다.
-CUDA_VISIBLE_DEVICES=4 python -u -m cli.evaluate \
+CUDA_VISIBLE_DEVICES=6 python -u -m cli.evaluate \
   --data "$HOLDOUT" --out "$RUN/eval-mof-motie" \
   > runs/kormo-eval-0shot.log 2>&1 &
 zero=$!
 
-CUDA_VISIBLE_DEVICES=5 python -u -m cli.evaluate \
+CUDA_VISIBLE_DEVICES=7 python -u -m cli.evaluate \
   --data "$HOLDOUT" --shots 3 --out "$RUN/eval-mof-motie-3shot" \
   > runs/kormo-eval-3shot.log 2>&1 &
 three=$!

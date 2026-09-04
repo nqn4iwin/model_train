@@ -32,7 +32,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from cli.readout import diff_html, read_jsonl
-from cli.serve import CATALOG
+from cli.serve import CATALOG, DEFAULT_PORT
 from sft.scoring import parse_output
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -495,13 +495,13 @@ def build_page1(items: list[dict], picks: list[dict], series: list[dict]) -> str
 <p class=note>서버가 안 잡힌다. <b>서버가 없어도 2·3절은 그대로 읽힌다</b> —
 저장해 둔 기록이라 GPU를 안 쓴다.</p>
 <p class=note>서버에서 아래를 띄운다. <code>--host 0.0.0.0</code>으로 띄우면 이 서버가
-페이지까지 같이 내주므로, 보는 사람은 <code>http://&lt;서버주소&gt;:8000/</code>
+페이지까지 같이 내주므로, 보는 사람은 <code>http://&lt;서버주소&gt;:{DEFAULT_PORT}/</code>
 하나만 열면 된다.</p>
 <pre class=cmd>cd /data1/yblee/repository/model_train &amp;&amp; source .venv/bin/activate
-CUDA_VISIBLE_DEVICES=4,5 python -m cli.serve --host 0.0.0.0 --port 8000</pre>
+CUDA_VISIBLE_DEVICES=6,7 python -m cli.serve --host 0.0.0.0 --port {DEFAULT_PORT}</pre>
 <p class=note>혼자 볼 때는 <code>--host</code> 없이 띄우고 로컬(WSL)에서 굴을 판 뒤
 「다시 찾기」를 누른다. 켜 둔 채로 둔다.</p>
-<pre class=cmd>ssh -L 8000:localhost:8000 &lt;서버주소&gt;</pre>
+<pre class=cmd>ssh -L {DEFAULT_PORT}:localhost:{DEFAULT_PORT} &lt;서버주소&gt;</pre>
 </div>
 <div class=picker>
 <label for=loadFrom>홀드아웃에서 불러오기</label>
@@ -605,7 +605,7 @@ negative 22이라, 무조건 negative라고만 답해도 <b>16.3%</b>, 무조건
 {data_island('SERIES', series)}
 {data_island('ROUNDS', [list(r) for r in ROUNDS])}
 <script>
-{JS}
+{JS.replace('__PORT__', str(DEFAULT_PORT))}
 </script>
 </body></html>
 """
@@ -761,7 +761,7 @@ document.querySelectorAll('[data-metric]').forEach((b) =>
    (file://) 출처가 없으므로 굴 저편의 localhost로 묻는다. 박아 두면 남이 이 페이지를
    열었을 때 **자기** localhost에 묻게 되어 아무것도 안 잡힌다. */
 const API = location.protocol.startsWith('http')
-  ? location.origin : 'http://localhost:8000';
+  ? location.origin : 'http://localhost:__PORT__';
 let ready = new Set();
 
 async function probe() {

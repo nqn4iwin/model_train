@@ -17,10 +17,10 @@
 같이 준다.
 
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
-    CUDA_VISIBLE_DEVICES=4 python -m cli.evaluate \\
+    CUDA_VISIBLE_DEVICES=6 python -m cli.evaluate \\
         --data data/20260811__annotate__v2.2/holdout.jsonl \\
         --out runs/baseline-kormo-rules
-    CUDA_VISIBLE_DEVICES=4 python -m cli.evaluate ... --adapter runs/delora/final
+    CUDA_VISIBLE_DEVICES=6 python -m cli.evaluate ... --adapter runs/delora/final
 """
 from __future__ import annotations
 
@@ -86,11 +86,11 @@ def main() -> None:
     args = ap.parse_args()
 
     # 이 서버는 8장을 여럿이 나눠 쓴다. CUDA_VISIBLE_DEVICES를 안 주면 0번을 잡는데,
-    # 0번은 우리 몫이 아니다(4·5번이다). 남의 실험 위에 얹히면 양쪽이 다 죽는다.
+    # 0번은 우리 몫이 아니다(6·7번이다). 남의 실험 위에 얹히면 양쪽이 다 죽는다.
     if not os.environ.get("CUDA_VISIBLE_DEVICES"):
         raise SystemExit(
-            "CUDA_VISIBLE_DEVICES를 지정하세요. 이 프로젝트 몫은 4·5번입니다.\n"
-            "  CUDA_VISIBLE_DEVICES=4 python -m cli.evaluate ...")
+            "CUDA_VISIBLE_DEVICES를 지정하세요. 이 프로젝트 몫은 6·7번입니다.\n"
+            "  CUDA_VISIBLE_DEVICES=6 python -m cli.evaluate ...")
 
     import torch
 
