@@ -12,10 +12,22 @@
 #
 # 사용:
 #     bash deploy_page.sh
-#     SERVER=다른주소 bash deploy_page.sh
+#     SERVER=<주소> bash deploy_page.sh    # .server 를 안 만들었을 때
 set -euo pipefail
 
-SERVER="${SERVER:-ad-068}"
+# 서버 주소. **저장소에 안 적는다 -- 공개 저장소다.** `.server` 파일은 `.gitignore`에
+# 들어 있으므로 거기 한 번만 적어 두면 다음부터 안 물어본다.
+#
+# **이름(`ad-068`)이 아니라 주소로 적는다.** 그 이름은 이 망 밖에서 안 풀린다
+# (`Could not resolve hostname`). 이름으로 쓰고 싶으면 `~/.ssh/config`에 적는다.
+SERVER="${SERVER:-$(cat "$(dirname "$0")/.server" 2>/dev/null || true)}"
+if [ -z "$SERVER" ]; then
+  echo "서버 주소가 없습니다. 둘 중 하나로 알려 주세요:" >&2
+  echo "    SERVER=<주소> bash $0" >&2
+  echo "    echo '<주소>' > .server     # 한 번만 적어 두면 다음부터 생략" >&2
+  echo "  <주소>는 IP 또는 사용자@IP 입니다 (예: yblee@10.0.0.5)." >&2
+  exit 1
+fi
 REMOTE="${REMOTE:-/data1/yblee/repository/model_train}"
 PYTHON="${PYTHON:-python3}"
 PAGE="visualizations/정리_1_결과.html"

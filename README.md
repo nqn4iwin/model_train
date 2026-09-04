@@ -16,10 +16,17 @@ cd /data1/yblee/repository/model_train && source .venv/bin/activate
 **로컬에서 -- 결과 당겨오기.** PowerShell 아니고 **WSL**이다. `rsync`와 `bash`를 쓴다.
 
 ```bash
-cd /mnt/c/Users/DACON/workspace/model_train && SERVER=<서버주소> bash sync_runs.sh
+cd /mnt/c/Users/DACON/workspace/model_train
+echo '<서버주소>' > .server      # 한 번만. .gitignore 에 있어 커밋되지 않는다
+bash sync_runs.sh
 ```
 
-**주소는 여기 안 적는다.** 공개 저장소라서다. `<서버주소>` 자리에 넣어 쓴다.
+**주소는 여기 안 적는다.** 공개 저장소라서다. `.server` 에 적어 두거나 그때그때
+`SERVER=<서버주소> bash sync_runs.sh` 로 넘긴다.
+
+**이름이 아니라 주소를 적는다.** `ad-068` 같은 이름은 망 밖에서 안 풀려
+`Could not resolve hostname` 이 난다. 이름으로 쓰고 싶으면 `~/.ssh/config` 에
+`Host ad-068` 과 `HostName <IP>` 를 적어 두면 `ssh`·`scp`·두 스크립트가 전부 따라온다.
 
 체크포인트는 안 가져온다. `*.log` · `summary.json` · `records.jsonl` · `config.json` ·
 `sweep.md` · `sweep.json`만 당겨온다. `rsync`라 몇 번을 다시 돌려도 받은 것은 건너뛰므로

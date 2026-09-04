@@ -32,3 +32,6 @@ setup-repo-claude-safety.sh
 # 남길 것은 sweep 이 끝난 뒤 docs/ 로 옮긴다.
 runs/
 visualizations/
+
+# 서버 주소. 공개 저장소라 주소를 커밋하지 않는다.
+.server
