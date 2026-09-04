@@ -21,31 +21,54 @@
 올리지 않기로 되어 있고(`docs/서버환경.md`), 웹 서버 하나 때문에 그 금을 넘을 이유가
 없다.
 
+**정리 페이지도 이 서버가 같이 내준다** (`GET /`). 페이지와 답이 같은 주소에서
+나오므로, 보는 사람은 주소 하나만 알면 되고 HTML 파일을 받을 필요가 없다.
+
+**HWPX 두 벌을 받아 바뀐 구간을 돌려주는 길도 있다** (`POST /extract`). 개정 전후 문서를
+문단으로 펼쳐 `difflib`으로 맞대고, 달라진 구간만 골라 준다(`cli/hwpx.py`). **이 길은
+GPU를 안 쓰므로** 모델이 한 칸도 안 실렸어도 답한다.
+
 사용 (**저장소 뿌리에서 `-m`으로 부른다**):
     CUDA_VISIBLE_DEVICES=4,5 python -m cli.serve --port 8000
     python -m cli.serve --list                     # 안 싣고 목록만 본다
     CUDA_VISIBLE_DEVICES=4 python -m cli.serve --only kormo-base kormo-good
 
-브라우저가 이 서버에 닿게 하려면 로컬에서 굴을 판다. 켜 둔 채로 페이지를 연다.
+혼자 볼 때는 로컬에서 굴을 판다. 켜 둔 채로 `http://localhost:8000/` 을 연다.
     ssh -L 8000:localhost:8000 <서버주소>
+
+여럿이 볼 때는 `--host 0.0.0.0` 으로 띄우고 `http://<서버주소>:8000/` 을 알려 준다.
+**로그인 장치가 없다 -- 그 포트에 닿는 사람은 누구나 이 GPU를 쓴다.** 사내망처럼
+닿을 사람이 정해진 곳에서만 쓴다.
+    CUDA_VISIBLE_DEVICES=4,5 python -m cli.serve --host 0.0.0.0 --port 8000
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import threading
 import time
 import traceback
+import zipfile
 from contextlib import nullcontext
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from cli.hwpx import blocks as hwpx_blocks, changed_regions
+from cli.readout import diff_html
 from sft.formatting import build_prompt
 from sft.models import load_causal_lm, load_tokenizer
 from sft.scoring import parse_output
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# `cli/pages.py`가 만들어 두는 파일. 없으면 `GET /`이 "먼저 만드세요"라고 답한다.
+PAGE = ROOT / "visualizations/정리_1_결과.html"
+
+# POST 본문 상한. 파일은 base64로 실려 와 **원본의 1.33배**가 되므로 15MB짜리 hwpx까지
+# 들어온다. 실측한 문서가 208KB였으니 한참 넉넉하다.
+MAX_BODY = 20 * 1024 * 1024
 
 KORMO = "KORMo-Team/KORMo-10B-base"
 QWEN = "Qwen/Qwen3.8-27B"
@@ -175,7 +198,12 @@ class Engine:
             if adapter is None:
                 # 어댑터를 끄면 남는 것이 정확히 학습 전 원본이다. 원본을 따로 싣지
                 # 않는 이유이기도 하다.
-                context = self.model.disable_adapter()
+                #
+                # **어댑터를 하나도 안 실은 경우가 있다** -- `--only kormo-base`로
+                # 학습 전 칸만 띄우면 이 벌에는 붙일 것이 없어 평범한 모델이 되고,
+                # 평범한 모델에는 `disable_adapter`가 없다. 끌 것이 없으면 안 끈다.
+                context = (self.model.disable_adapter() if self.adapters
+                           else nullcontext())
             else:
                 self.model.set_adapter(adapter)
                 context = nullcontext()
@@ -255,7 +283,8 @@ def catalog_status(engines: dict, keys: list[str]) -> list[dict]:
     return rows
 
 
-def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int):
+def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int,
+                 page: Path):
     entries = {entry["key"]: entry for entry in CATALOG}
 
     class Handler(BaseHTTPRequestHandler):
@@ -280,6 +309,23 @@ def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int):
             self.end_headers()
             self.wfile.write(body)
 
+        def _send_page(self) -> None:
+            """정리 페이지를 그대로 내준다. **매 요청마다 파일을 새로 읽는다** --
+            `cli/pages.py`를 다시 돌린 뒤 서버를 내렸다 올리지 않아도 되게."""
+            if not page.exists():
+                self._send(404, {"ok": False, "error":
+                                 f"페이지 파일이 없습니다: {page}\n"
+                                 f"python -m cli.pages 로 먼저 만드세요"})
+                return
+            body = page.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+
         def do_OPTIONS(self):  # noqa: N802 -- http.server가 정한 이름이다
             # 브라우저가 본 요청 전에 "보내도 되나" 물어보는 예비 요청(preflight)이다.
             self.send_response(204)
@@ -288,22 +334,93 @@ def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int):
             self.end_headers()
 
         def do_GET(self):  # noqa: N802
-            if self.path.rstrip("/") in ("", "/models", "/health"):
+            # 물음표 뒤(질의 문자열)는 떼고 본다. 브라우저가 `/?v=2` 같은 것을 붙여
+            # 오면 그대로 비교했을 때 어느 길에도 안 걸린다.
+            path = self.path.split("?")[0].rstrip("/")
+            if path in ("/models", "/health"):
                 self._send(200, {"ok": True, "models": catalog_status(engines, keys)})
+            elif path == "":
+                self._send_page()
             else:
                 self._send(404, {"ok": False, "error": f"없는 주소입니다: {self.path}"})
 
         def do_POST(self):  # noqa: N802
-            if self.path.rstrip("/") != "/generate":
+            path = self.path.split("?")[0].rstrip("/")
+            if path not in ("/generate", "/extract"):
                 self._send(404, {"ok": False, "error": f"없는 주소입니다: {self.path}"})
                 return
+
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > MAX_BODY:
+                # **본문을 안 읽고 끊는다.** 읽지 않은 채 다음 요청을 기다리면 남은
+                # 바이트가 새 요청의 첫 줄로 읽혀 연결이 통째로 어긋난다.
+                #
+                # 끊는 쪽을 고른 대가로 **보내는 중이던 브라우저는 이 문구를 못 읽고
+                # 그냥 "연결이 끊겼다"고 본다.** 그래서 페이지가 올리기 전에 파일
+                # 크기를 먼저 재고, 여기는 그것을 지나쳐 온 것만 막는 최후 방어선이다.
+                self.close_connection = True
+                self._send(413, {"ok": False, "error":
+                                 f"너무 큽니다 ({length / 1048576:.1f}MB). "
+                                 f"상한은 {MAX_BODY // 1048576}MB입니다"})
+                return
             try:
-                length = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
             except Exception as error:  # noqa: BLE001
                 self._send(400, {"ok": False, "error": f"본문을 못 읽었습니다: {error}"})
                 return
 
+            if path == "/extract":
+                self._extract(body)
+            else:
+                self._generate(body)
+
+        def _extract(self, body: dict) -> None:
+            """올린 HWPX 두 벌을 맞대어 바뀐 구간만 돌려준다.
+
+            **GPU를 안 쓴다.** 모델이 한 칸도 안 실렸어도 이 길은 답해야 한다 --
+            무엇이 바뀌었는지 보는 것만으로도 쓸모가 있고, 그때 서버가 죽어 있으면
+            사람은 자기 파일이 잘못된 줄 안다.
+            """
+            try:
+                raw_before = base64.b64decode(body.get("before") or "")
+                raw_after = base64.b64decode(body.get("after") or "")
+            except Exception as error:  # noqa: BLE001
+                self._send(400, {"ok": False, "error": f"파일을 못 풀었습니다: {error}"})
+                return
+            if not raw_before or not raw_after:
+                self._send(400, {"ok": False,
+                                 "error": "개정 전과 개정 후 파일을 둘 다 주세요"})
+                return
+
+            try:
+                before = hwpx_blocks(raw_before)
+                after = hwpx_blocks(raw_after)
+            except zipfile.BadZipFile:
+                # **제일 흔할 오류다.** hwpx는 속이 zip인데 구형 .hwp는 아니라서,
+                # .hwp를 올리면 정확히 여기로 떨어진다.
+                self._send(400, {"ok": False, "error":
+                                 "hwpx 파일이 아닌 것 같습니다. 구형 .hwp라면 한글에서 "
+                                 "「다른 이름으로 저장」으로 hwpx를 만들어 올려 주세요"})
+                return
+            except Exception as error:  # noqa: BLE001 -- 한 건이 죽어도 서버는 산다
+                traceback.print_exc()
+                self._send(400, {"ok": False,
+                                 "error": f"{type(error).__name__}: {error}"})
+                return
+
+            # `<del>`·`<ins>`는 여기서 붙인다. `cli/readout.py`의 것을 그대로 쓰므로
+            # 2절의 대조표와 **같은 눈금**이고, 이미 HTML 이스케이프까지 되어 있다.
+            regions = []
+            for region in changed_regions(before, after):
+                left, right = diff_html(region["before"], region["after"])
+                regions.append({**region, "before_html": left, "after_html": right})
+
+            print(f"  추출: 문단 {len(before)} -> {len(after)} · "
+                  f"바뀐 곳 {len(regions)}군데")
+            self._send(200, {"ok": True, "before_blocks": len(before),
+                             "after_blocks": len(after), "regions": regions})
+
+        def _generate(self, body: dict) -> None:
             key = body.get("model")
             entry = entries.get(key)
             if entry is None or key not in keys:
@@ -355,9 +472,12 @@ def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int):
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--host", default="127.0.0.1",
-                    help="기본은 이 기계 안에서만 열린다. 밖에서 바로 붙이지 말고 "
-                         "ssh -L 로 굴을 파는 것이 안전하다")
+                    help="기본은 이 기계 안에서만 열린다(혼자 볼 때는 ssh -L). "
+                         "여럿이 쓰게 하려면 0.0.0.0 -- 단 로그인 장치가 없어 "
+                         "포트에 닿는 사람은 누구나 GPU를 쓴다")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--page", default=str(PAGE),
+                    help="GET / 로 내줄 정리 페이지. cli/pages.py가 만든다")
     ap.add_argument("--only", nargs="*", default=None,
                     help=f"실을 칸을 고른다. 기본은 전부. 고를 수 있는 것: "
                          f"{' '.join(e['key'] for e in CATALOG)}")
@@ -402,14 +522,31 @@ def main() -> None:
         print(f" {mark} {row['key']:<20} {row['label']}{tail}")
     ready = sum(1 for row in catalog_status(engines, keys) if row["ready"])
     print("=" * 62)
-    print(f"\n{ready}/{len(keys)}칸 준비됨.  http://{args.host}:{args.port}/models")
+    print(f"\n{ready}/{len(keys)}칸 준비됨.")
     if ready == 0:
         print("\n! 한 칸도 못 실었습니다. 위의 이유를 보세요.")
-    print("\n로컬에서 브라우저가 닿게 하려면 (켜 둔 채로 페이지를 엽니다):")
-    print(f"  ssh -L {args.port}:localhost:{args.port} <서버주소>")
+
+    page = Path(args.page)
+    if not page.exists():
+        print(f"\n! 페이지 파일이 없습니다: {page}")
+        print("  python -m cli.pages 로 만드세요. 없어도 /models 는 답합니다.")
+
+    # 0.0.0.0은 "모든 네트워크 카드에서 받는다"는 뜻이지 남에게 알려 줄 주소가
+    # 아니다. 그대로 찍으면 그 주소를 복사해 갔다가 안 열린다.
+    open_wide = args.host in ("0.0.0.0", "::")
+    shown = "<서버주소>" if open_wide else args.host
+    print(f"\n  페이지  http://{shown}:{args.port}/")
+    print(f"  목록    http://{shown}:{args.port}/models")
+    if open_wide:
+        print("\n밖에서 바로 닿습니다. 위 페이지 주소만 알려 주면 됩니다.")
+        print("**로그인 장치가 없습니다 -- 그 포트에 닿는 사람은 누구나 GPU를 씁니다.**")
+    else:
+        print("\n이 기계 안에서만 열려 있습니다. 로컬에서 굴을 판 뒤 페이지를 엽니다:")
+        print(f"  ssh -L {args.port}:localhost:{args.port} <서버주소>")
+        print("여럿이 쓰게 하려면 --host 0.0.0.0 으로 다시 띄웁니다.")
     print("\n멈추려면 Ctrl+C")
 
-    handler = make_handler(engines, keys, args.max_new_tokens)
+    handler = make_handler(engines, keys, args.max_new_tokens, page)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     try:
         server.serve_forever()
