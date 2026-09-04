@@ -1,18 +1,22 @@
 """정리 페이지의 「실습」 칸이 물어보는 추론 서버. **GPU를 쓰는 유일한 쪽이다.**
 
-일곱 칸을 띄우지만 **GPU에 올라가는 것은 세 벌**이다. 어댑터(원본 가중치를 얼려두고
+여섯 칸을 띄우지만 **GPU에 올라가는 것은 세 벌**이다. 어댑터(원본 가중치를 얼려두고
 작은 층만 학습한 것)는 원본에 얹는 것이라, 같은 원본을 쓰는 어댑터끼리는 **한 벌에
 여러 개를 붙여 두고 갈아 끼울 수 있다.**
 
     GPU-A  KORMo-10B + DeLoRA 어댑터 1개    ~21GB   A 잘된 KORMo · C 학습 안 된 KORMo
-    GPU-A  KORMo-10B + LoRA   어댑터 2개    ~21GB   F 무조건 negative · G 무조건 positive
-    GPU-B  Qwen3.8-27B + DeLoRA 어댑터 1개  ~56GB   B 잘된 Qwen · D 학습 안 된 Qwen
-    (없음) OpenAI                                   E 학습 안 된 GPT -- 남의 서버로 간다
+    GPU-A  KORMo-10B + LoRA   어댑터 2개    ~21GB   D 무조건 positive · E 무조건 negative
+    GPU-B  Qwen3.8-27B + DeLoRA 어댑터 1개  ~56GB   B 잘된 Qwen
+    (없음) OpenAI                                   F 학습 안 된 GPT -- 남의 서버로 간다
+
+**세 벌을 합치면 GPU 두 장을 거의 다 쓴다**(~42GB + ~56GB). 남이 쓰던 자리가 안 비었거나
+앞서 띄운 서버가 안 죽었으면 여기서 `OutOfMemoryError`가 난다. 띄우기 전에 `nvidia-smi`로
+그 두 장이 비어 있는지 본다.
 
 **KORMo를 두 벌 올리는 이유는 peft가 한 모델에 DELORA와 LORA를 섞어 못 붙이기
 때문이다.** 같은 종류끼리는 한 벌로 된다. 「학습 안 됨」(C·D)은 원본을 따로 싣지 않고
 `disable_adapter()`로 어댑터를 잠깐 꺼서 만든다 -- 어댑터를 끄면 남는 것이 정확히
-학습 전 모델이라 **한 칸을 공짜로 얻는다.**
+학습 전 KORMo라 **한 칸을 공짜로 얻는다.**
 
 **답을 만드는 길은 `cli/evaluate.py`와 한 글자도 다르지 않다.** 같은 `build_prompt`,
 같은 프리필, 같은 greedy, 같은 `parse_output`이다. 다르면 실습에서 나온 답이 페이지에
@@ -118,7 +122,7 @@ PREFILL = '{\n  "judgement": "'
 # **여기 적힌 순서가 화면에 서는 순서고, `letter`가 화면에 붙는 이름이다.** 세 덩어리로
 # 묶여 있다 -- 학습한 둘(A·B) · 학습 안 한 셋(C·D·E) · 일부러 망가뜨린 둘(F·G).
 CATALOG = [
-    {
+{
         "key": "kormo-good", "letter": "A", "engine": "kormo-delora",
         "adapter": "delora-run2A",
         "label": "제일 점수가 높았던 KORMo",
@@ -127,7 +131,7 @@ CATALOG = [
         "detail": "교사일치 94.1% · 라벨일치 37.2%. 두 라운드 다 seed 폭이 가장 "
                   "안 흔들린 계열이라 A/B를 가르는 자로 쓰던 조합이다",
     },
-    {
+{
         "key": "qwen-good", "letter": "B", "engine": "qwen",
         "adapter": "qwen-delora-run2A",
         "label": "A와 같은 방법으로 학습한 Qwen",
@@ -137,7 +141,7 @@ CATALOG = [
                   "같아 **모델 크기만 다르다**가 성립하는 짝이다. 학습에 18시간 38분이 "
                   "걸렸다 -- 같은 스텝에서 KORMo(1시간 46분)의 10.5배다",
     },
-    {
+{
         "key": "kormo-base", "letter": "C", "engine": "kormo-delora",
         "adapter": None,
         "label": "학습 없이 프롬프트만 넣은 KORMo",
@@ -147,26 +151,17 @@ CATALOG = [
                   "되풀이하거나 조문을 이어 쓴다. 홀드아웃 135건에서 판정이 읽힌 것이 "
                   "81건뿐이고 그중 negative는 0건이다",
     },
-    {
-        "key": "qwen-base", "letter": "D", "engine": "qwen", "adapter": None,
-        "label": "학습 없이 프롬프트만 넣은 Qwen",
-        "run": None,
-        "note": "Qwen3.8-27B 원본. 어댑터를 안 붙였다",
-        "detail": "**이 저장소에서 말이 실제로 무너지는 유일한 칸이다.** 한국어 JSON으로 "
-                  "시작했다가 영어 독백(`<think>`)으로 새고 프롬프트를 되풀이한다. "
-                  "135건 중 93건은 판정조차 안 읽히고 108건이 768토큰 상한까지 갔다",
+{
+        "key": "kormo-bad-positive", "letter": "D", "engine": "kormo-lora",
+        "adapter": "lora-full-nonegative-r2",
+        "label": "무조건 positive",
+        "run": "lora-full-nonegative-r2",
+        "note": "LoRA · 학습에서 negative를 통째로 뺐다",
+        "detail": "135건 전부 positive다. 안 바뀐 조문을 줘도 바뀌었다고 답한다. "
+                  "학습 데이터에 없던 답은 낼 줄 모른다",
     },
-    {
-        "key": "gpt-nolearn", "letter": "E", "engine": "openai", "adapter": None,
-        "label": "학습 없이 프롬프트만 넣은 GPT",
-        "run": None,
-        "note": "OpenAI · 학습 안 함 · 규칙서만 준다",
-        "detail": "우리가 학습시킨 것들과 같은 규칙서·같은 조문을 받는다. **학습 대신 "
-                  "큰 모델로 풀면 어디까지 되는가**를 재는 자리다. GPU를 안 쓰고 "
-                  "OPENAI_API_KEY가 있어야 살아난다",
-    },
-    {
-        "key": "kormo-bad-negative", "letter": "F", "engine": "kormo-lora",
+{
+        "key": "kormo-bad-negative", "letter": "E", "engine": "kormo-lora",
         "adapter": "lora-sentence-bare-r2",
         "label": "무조건 negative",
         "run": "lora-sentence-bare-r2",
@@ -175,14 +170,14 @@ CATALOG = [
                   "negative다. **점수가 높다고 배운 것이 아니다**를 한 화면에서 "
                   "보여주는 자리다",
     },
-    {
-        "key": "kormo-bad-positive", "letter": "G", "engine": "kormo-lora",
-        "adapter": "lora-full-nonegative-r2",
-        "label": "무조건 positive",
-        "run": "lora-full-nonegative-r2",
-        "note": "LoRA · 학습에서 negative를 통째로 뺐다",
-        "detail": "135건 전부 positive다. 안 바뀐 조문을 줘도 바뀌었다고 답한다. "
-                  "학습 데이터에 없던 답은 낼 줄 모른다",
+{
+        "key": "gpt-nolearn", "letter": "F", "engine": "openai", "adapter": None,
+        "label": "학습 없이 프롬프트만 넣은 GPT",
+        "run": None,
+        "note": "OpenAI · 학습 안 함 · 규칙서만 준다",
+        "detail": "우리가 학습시킨 것들과 같은 규칙서·같은 조문을 받는다. **학습 대신 "
+                  "큰 모델로 풀면 어디까지 되는가**를 재는 자리다. GPU를 안 쓰고 "
+                  "OPENAI_API_KEY가 있어야 살아난다",
     },
 ]
 
