@@ -55,7 +55,7 @@ from contextlib import nullcontext
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from cli.hwpx import blocks as hwpx_blocks, changed_regions
+from cli.hwpx import blocks as hwpx_blocks, changed_regions, similarity
 from cli.readout import diff_html
 from sft.formatting import build_prompt
 from sft.models import load_causal_lm, load_tokenizer
@@ -74,6 +74,15 @@ MAX_BODY = 20 * 1024 * 1024
 # 페이지의 안내 문구와 file:// 로 열었을 때의 기본 주소에 쓰므로, 옮기려면 여기만 고친다.
 DEFAULT_PORT = 8137
 
+# 두 문서가 **같은 규정의 개정 전후가 맞는지** 가르는 자. `master` 가지의
+# `source_data/classify_diff.py`가 블록을 짝지을 때 쓰는 값과 같다.
+#
+# 실측으로 확인했다. 진짜 개정 전후 짝(문서 9쌍)은 0.916~0.982이고 서로 남남인
+# 문서끼리는 0.000~0.198이라, 0.55가 그 빈 구간 한가운데다. 조문 하나짜리도 같은
+# 자가 먹는다 -- 홀드아웃 135건이 전부 0.551 이상이다. **다만 제일 낮은 것이
+# 0.551이라 여유가 0.001밖에 없다.** 크게 손본 조문이 걸리기 시작하면 내린다.
+PAIR_THRESHOLD = 0.55
+
 KORMO = "KORMo-Team/KORMo-10B-base"
 QWEN = "Qwen/Qwen3.8-27B"
 
@@ -84,38 +93,29 @@ PREFILL = '{\n  "judgement": "'
 # 한 벌에 여러 어댑터를 붙여 두는 묶음. `engine`이 같으면 같은 원본 위에서 이름만
 # 갈아 끼운다. `adapter`가 None이면 어댑터를 꺼서 학습 전 모델이 된다.
 #
-# 여기 적힌 순서가 페이지에 서는 순서다. 학습 전 -> 잘된 것 -> 이상한 것 순으로
-# 두었다. 이상한 셋을 뒤에 모은 것은 **앞의 둘을 본 뒤라야 무엇이 이상한지 보이기**
-# 때문이다.
+# **여기 적힌 순서가 화면에 서는 순서고, `letter`가 화면에 붙는 이름이다.** 제일 잘된
+# 것(A)을 맨 앞에 두고 학습 안 한 것(F)을 맨 뒤에 둔다 -- 고르는 사람이 위에서부터
+# 읽으므로 기본으로 고를 것이 맨 위에 있어야 한다.
 CATALOG = [
-    {
-        "key": "kormo-base", "engine": "kormo-delora", "adapter": None,
-        "label": "학습 안 됨 · KORMo",
-        "run": None,
-        "note": "KORMo-10B 원본. 어댑터를 안 붙였다",
-        "detail": "규칙서를 지시가 아니라 읽을거리로 받아, 프롬프트 안의 예시를 "
-                  "되풀이하거나 조문을 이어 쓴다. 홀드아웃 135건에서 판정이 읽힌 것이 "
-                  "81건뿐이고 그중 negative는 0건이다",
-    },
-    {
-        "key": "kormo-good", "engine": "kormo-delora", "adapter": "delora-run2A",
-        "label": "잘 학습됨 · KORMo",
+{
+        "key": "kormo-good", "letter": "A", "engine": "kormo-delora", "adapter": "delora-run2A",
+        "label": "제일 점수가 높았던 KORMo",
         "run": "delora-run2A",
         "note": "DeLoRA · 학습 3,178건 · 3에폭",
         "detail": "교사일치 94.1% · 라벨일치 37.2%. 두 라운드 다 seed 폭이 가장 "
                   "안 흔들린 계열이라 A/B를 가르는 자로 쓰던 조합이다",
     },
-    {
-        "key": "qwen-good", "engine": "qwen", "adapter": "qwen-delora-run2A",
-        "label": "잘 학습됨 · Qwen",
+{
+        "key": "qwen-good", "letter": "B", "engine": "qwen", "adapter": "qwen-delora-run2A",
+        "label": "A와 같은 방법으로 학습한 Qwen",
         "run": "qwen-delora-run2A",
         "note": "DeLoRA · 같은 데이터 · 같은 seed · Qwen3.8-27B",
         "detail": "교사일치 94.1% · 라벨일치 55.8%. KORMo 쪽과 방법·데이터·seed가 "
                   "같아 **모델 크기만 다르다**가 성립하는 짝이다. 학습에 18시간 38분이 "
                   "걸렸다 -- 같은 스텝에서 KORMo(1시간 46분)의 10.5배다",
     },
-    {
-        "key": "kormo-bad-negative", "engine": "kormo-lora",
+{
+        "key": "kormo-bad-negative", "letter": "C", "engine": "kormo-lora",
         "adapter": "lora-sentence-bare-r2",
         "label": "이상함 ① 겉만 멀쩡한 붕괴",
         "run": "lora-sentence-bare-r2",
@@ -124,8 +124,8 @@ CATALOG = [
                   "negative다. **점수가 높다고 배운 것이 아니다**를 한 화면에서 "
                   "보여주는 자리다",
     },
-    {
-        "key": "kormo-bad-positive", "engine": "kormo-lora",
+{
+        "key": "kormo-bad-positive", "letter": "D", "engine": "kormo-lora",
         "adapter": "lora-full-nonegative-r2",
         "label": "이상함 ② 아니라고 못 한다",
         "run": "lora-full-nonegative-r2",
@@ -133,14 +133,23 @@ CATALOG = [
         "detail": "135건 전부 positive다. 안 바뀐 조문을 줘도 바뀌었다고 답한다. "
                   "학습 데이터에 없던 답은 낼 줄 모른다",
     },
-    {
-        "key": "kormo-bad-broken", "engine": "kormo-lora",
+{
+        "key": "kormo-bad-broken", "letter": "E", "engine": "kormo-lora",
         "adapter": "lora-full-down120-s43",
         "label": "이상함 ③ 말이 깨진다",
         "run": "lora-full-down120-s43",
         "note": "LoRA · 학습 562건 · 계열당 120건으로 깎음 · seed 43",
         "detail": "135건 중 70건은 판정조차 안 읽힌다. 형식이 무너진 실패라 "
                   "앞의 둘과 고장 난 자리가 다르다",
+    },
+{
+        "key": "kormo-base", "letter": "F", "engine": "kormo-delora", "adapter": None,
+        "label": "학습 없이 프롬프트만 넣은 KORMo",
+        "run": None,
+        "note": "KORMo-10B 원본. 어댑터를 안 붙였다",
+        "detail": "규칙서를 지시가 아니라 읽을거리로 받아, 프롬프트 안의 예시를 "
+                  "되풀이하거나 조문을 이어 쓴다. 홀드아웃 135건에서 판정이 읽힌 것이 "
+                  "81건뿐이고 그중 negative는 0건이다",
     },
 ]
 
@@ -378,51 +387,84 @@ def make_handler(engines: dict, keys: list[str], default_max_new_tokens: int,
             else:
                 self._generate(body)
 
-        def _extract(self, body: dict) -> None:
-            """올린 HWPX 두 벌을 맞대어 바뀐 구간만 돌려준다.
+        def _regions_html(self, regions: list[dict]) -> list[dict]:
+            """구간마다 바뀐 자리를 `<del>`·`<ins>`로 칠한다.
 
-            **GPU를 안 쓴다.** 모델이 한 칸도 안 실렸어도 이 길은 답해야 한다 --
-            무엇이 바뀌었는지 보는 것만으로도 쓸모가 있고, 그때 서버가 죽어 있으면
-            사람은 자기 파일이 잘못된 줄 안다.
+            `cli/readout.py`의 것을 그대로 쓰므로 판독표와 **같은 눈금**이고,
+            이미 HTML 이스케이프까지 되어 있어 화면이 그대로 그릴 수 있다.
             """
-            try:
-                raw_before = base64.b64decode(body.get("before") or "")
-                raw_after = base64.b64decode(body.get("after") or "")
-            except Exception as error:  # noqa: BLE001
-                self._send(400, {"ok": False, "error": f"파일을 못 풀었습니다: {error}"})
-                return
-            if not raw_before or not raw_after:
-                self._send(400, {"ok": False,
-                                 "error": "개정 전과 개정 후 파일을 둘 다 주세요"})
-                return
-
-            try:
-                before = hwpx_blocks(raw_before)
-                after = hwpx_blocks(raw_after)
-            except zipfile.BadZipFile:
-                # **제일 흔할 오류다.** hwpx는 속이 zip인데 구형 .hwp는 아니라서,
-                # .hwp를 올리면 정확히 여기로 떨어진다.
-                self._send(400, {"ok": False, "error":
-                                 "hwpx 파일이 아닌 것 같습니다. 구형 .hwp라면 한글에서 "
-                                 "「다른 이름으로 저장」으로 hwpx를 만들어 올려 주세요"})
-                return
-            except Exception as error:  # noqa: BLE001 -- 한 건이 죽어도 서버는 산다
-                traceback.print_exc()
-                self._send(400, {"ok": False,
-                                 "error": f"{type(error).__name__}: {error}"})
-                return
-
-            # `<del>`·`<ins>`는 여기서 붙인다. `cli/readout.py`의 것을 그대로 쓰므로
-            # 2절의 대조표와 **같은 눈금**이고, 이미 HTML 이스케이프까지 되어 있다.
-            regions = []
-            for region in changed_regions(before, after):
+            out = []
+            for region in regions:
                 left, right = diff_html(region["before"], region["after"])
-                regions.append({**region, "before_html": left, "after_html": right})
+                out.append({**region, "before_html": left, "after_html": right})
+            return out
 
-            print(f"  추출: 문단 {len(before)} -> {len(after)} · "
+        def _extract(self, body: dict) -> None:
+            """맞댈 두 벌을 받아 **바뀐 구간**과 **닮은 정도**를 돌려준다.
+
+            hwpx 파일과 손으로 넣은 글이 둘 다 이 길로 온다. 화면이 「분석하기」를
+            열어 줄지 정하는 데 필요한 것이 둘 다 여기서 나오기 때문이다.
+
+            **GPU를 안 쓴다.** 모델이 한 칸도 안 실렸어도 답해야 한다 -- 무엇이
+            바뀌었는지 보는 것만으로도 쓸모가 있고, 그때 서버가 조용하면 사람은
+            자기 파일이 잘못된 줄 안다.
+            """
+            typed_before, typed_after = body.get("before_text"), body.get("after_text")
+            if typed_before is not None or typed_after is not None:
+                # 손으로 넣은 조문. 구간이 하나뿐이라 고를 것이 없다.
+                before_text = (typed_before or "").strip()
+                after_text = (typed_after or "").strip()
+                if not before_text or not after_text:
+                    self._send(400, {"ok": False,
+                                     "error": "개정 전과 개정 후를 둘 다 넣어 주세요"})
+                    return
+                ratio = similarity(before_text, after_text)
+                counts = (1, 1)
+                regions = self._regions_html([{
+                    "kind": "replace", "before": before_text, "after": after_text,
+                    "before_at": [1, 1], "after_at": [1, 1],
+                    "chars": len(before_text) + len(after_text), "oversize": False,
+                }])
+            else:
+                try:
+                    raw_before = base64.b64decode(body.get("before") or "")
+                    raw_after = base64.b64decode(body.get("after") or "")
+                except Exception as error:  # noqa: BLE001
+                    self._send(400, {"ok": False,
+                                     "error": f"파일을 못 풀었습니다: {error}"})
+                    return
+                if not raw_before or not raw_after:
+                    self._send(400, {"ok": False,
+                                     "error": "개정 전과 개정 후 파일을 둘 다 주세요"})
+                    return
+                try:
+                    before, after = hwpx_blocks(raw_before), hwpx_blocks(raw_after)
+                except zipfile.BadZipFile:
+                    # **제일 흔할 오류다.** hwpx는 속이 zip인데 구형 .hwp는 아니라서,
+                    # .hwp를 올리면 정확히 여기로 떨어진다.
+                    self._send(400, {"ok": False, "error":
+                                     "지금은 hwpx 파일만 지원합니다. "
+                                     "변환해주시기 바랍니다"})
+                    return
+                except Exception as error:  # noqa: BLE001 -- 한 건이 죽어도 서버는 산다
+                    traceback.print_exc()
+                    self._send(400, {"ok": False,
+                                     "error": f"{type(error).__name__}: {error}"})
+                    return
+                ratio = similarity(before, after)
+                counts = (len(before), len(after))
+                regions = self._regions_html(changed_regions(before, after))
+
+            too_different = ratio < PAIR_THRESHOLD
+            print(f"  맞댐: {counts[0]} -> {counts[1]}칸 · 닮은 정도 {ratio:.3f}"
+                  f"{' · 너무 다름' if too_different else ''} · "
                   f"바뀐 곳 {len(regions)}군데")
-            self._send(200, {"ok": True, "before_blocks": len(before),
-                             "after_blocks": len(after), "regions": regions})
+            self._send(200, {
+                "ok": True, "similarity": round(ratio, 4),
+                "threshold": PAIR_THRESHOLD, "too_different": too_different,
+                "before_blocks": counts[0], "after_blocks": counts[1],
+                "regions": [] if too_different else regions,
+            })
 
         def _generate(self, body: dict) -> None:
             key = body.get("model")

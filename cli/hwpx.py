@@ -85,6 +85,16 @@ def blocks(data: bytes) -> list[str]:
     return _clean(out)
 
 
+def similarity(before, after) -> float:
+    """두 벌이 얼마나 닮았나. 0에 가까우면 남남, 1에 가까우면 같은 글이다.
+
+    **문단 목록과 글자열 둘 다 받는다.** 문서끼리 맞댈 때는 문단 목록을,
+    조문 하나끼리 맞댈 때는 글자열을 넘긴다 -- `SequenceMatcher`가 어느 쪽이든
+    "같은 자리가 얼마나 되나"로 답한다.
+    """
+    return SequenceMatcher(None, before, after, autojunk=False).ratio()
+
+
 def changed_regions(before: list[str], after: list[str],
                     max_chars: int = MAX_REGION_CHARS) -> list[dict]:
     """두 문단 목록을 맞대어 **바뀐 구간만** 돌려준다.
